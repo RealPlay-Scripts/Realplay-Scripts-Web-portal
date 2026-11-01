@@ -26,7 +26,7 @@
 .change-row select { background:var(--surface-3);border:1px solid var(--border);border-radius:6px;padding:4px 8px;color:var(--text-primary);font-size:0.8rem;cursor:pointer; }
 .change-row input { flex:1;background:var(--surface-3);border:1px solid var(--border);border-radius:6px;padding:5px 10px;color:var(--text-primary);font-size:0.85rem; }
 .change-row input:focus, .change-row select:focus { outline:none;border-color:var(--accent); }
-.preview-embed { background:#2b2d31;border-left:4px solid #6366f1;border-radius:0 8px 8px 0;padding:1rem 1.25rem;font-family:'Whitney',system-ui,sans-serif;font-size:0.9rem;max-width:480px; }
+.preview-embed { background:#2b2d31;border-left:4px solid #8b5cf6;border-radius:0 8px 8px 0;padding:1rem 1.25rem;font-family:'Whitney',system-ui,sans-serif;font-size:0.9rem;max-width:480px; }
 .preview-embed .em-title { font-weight:700;font-size:1rem;color:#fff;margin-bottom:0.3rem; }
 .preview-embed .em-desc  { color:#b5bac1;font-size:0.875rem;margin-bottom:0.75rem;font-style:italic; }
 .preview-embed .em-field-name { font-size:0.8rem;font-weight:700;color:#fff;margin-bottom:3px; }
@@ -192,7 +192,7 @@
     <div style="font-size:0.72rem;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.75rem;">Discord Preview</div>
     <div style="background:#313338;border-radius:10px;padding:1rem;min-height:300px;">
       <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.75rem;">
-        <div style="width:32px;height:32px;border-radius:50%;background:#6366f1;display:flex;align-items:center;justify-content:center;font-size:.85rem;">🚀</div>
+        <div style="width:32px;height:32px;border-radius:50%;background:#8b5cf6;display:flex;align-items:center;justify-content:center;font-size:.85rem;">🚀</div>
         <span style="font-weight:700;color:#fff;font-size:.9rem;">Server Updates</span>
         <span style="font-size:.7rem;color:#80848e;">BOT</span>
       </div>
@@ -218,7 +218,7 @@ var DISCORD_BASE  = "{{ url_for('admin.update_log_post_discord', entry_id=0) }}"
 var ADMIN_USER    = "{{ current_user.username }}";
 
 var CAT_META = {
-  update:       {emoji:'🚀', label:'Server Update',  color:'#6366f1'},
+  update:       {emoji:'🚀', label:'Server Update',  color:'#8b5cf6'},
   hotfix:       {emoji:'🔧', label:'Hotfix',          color:'#f59e0b'},
   announcement: {emoji:'📢', label:'Announcement',    color:'#3b82f6'},
   maintenance:  {emoji:'🛠️', label:'Maintenance',     color:'#64748b'},

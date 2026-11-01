@@ -1,6 +1,7 @@
 import os
 import hashlib
 import hmac
+import secrets
 import json
 import requests
 import functools
@@ -48,8 +49,11 @@ def api_key_required(scope='read'):
 
             if not key_str:
                 return jsonify({'error': 'API key required', 'code': 401}), 401
-            # Check FiveM server key
-            if key_str == current_app.config.get('FIVEM_API_KEY'):
+            # Check FiveM server key — only ever authorizes the narrow 'write'
+            # ingestion scope it was issued for. Never let it satisfy 'read' or
+            # 'admin'-scoped endpoints (CVE-chain: see security audit finding 1).
+            fivem_key = current_app.config.get('FIVEM_API_KEY')
+            if fivem_key and scope == 'write' and secrets.compare_digest(key_str, fivem_key):
                 return f(*args, **kwargs)
             key = APIKey.query.filter_by(key=key_str, is_active=True).first()
             if not key:

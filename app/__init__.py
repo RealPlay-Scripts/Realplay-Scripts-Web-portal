@@ -3,6 +3,7 @@ from flask_login import LoginManager, current_user
 from flask_migrate import Migrate
 from flask_caching import Cache
 from flask_mail import Mail
+from datetime import datetime
 import os
 
 from app.config import get_config
@@ -76,7 +77,7 @@ def create_app(config_class=None):
                 'site_name': SiteSettings.get('site_name', app.config['SITE_NAME']),
                 'site_tagline': SiteSettings.get('site_tagline', 'A FiveM Community'),
                 'site_logo': SiteSettings.get('site_logo', ''),
-                'primary_color': SiteSettings.get('primary_color', '#6366f1'),
+                'primary_color': SiteSettings.get('primary_color', '#8b5cf6'),
                 'discord_invite': SiteSettings.get('discord_invite', ''),
             }
         except Exception:
@@ -84,7 +85,7 @@ def create_app(config_class=None):
                 'site_name': app.config.get('SITE_NAME', 'CFRP Whitelist'),
                 'site_tagline': 'A FiveM Community',
                 'site_logo': '',
-                'primary_color': '#6366f1',
+                'primary_color': '#8b5cf6',
                 'discord_invite': '',
             }
         unread_count = 0
@@ -95,7 +96,7 @@ def create_app(config_class=None):
                 ).count()
             except Exception:
                 pass
-        return dict(site=settings, unread_notifications=unread_count)
+        return dict(site=settings, unread_notifications=unread_count, now=datetime.now)
 
     # Error handlers
     @app.errorhandler(403)

@@ -20,7 +20,7 @@
         </div>
         <div style="margin-bottom:0.875rem;"><label class="form-label">Description</label><textarea name="description" class="form-input" rows="3" placeholder="Describe what this application is for…">{{ app_type.description if app_type else '' }}</textarea></div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.875rem;">
-          <div><label class="form-label">Color</label><input type="color" name="color" value="{{ app_type.color if app_type else '#6366f1' }}" class="form-input" style="height:40px;padding:4px;" /></div>
+          <div><label class="form-label">Color</label><input type="color" name="color" value="{{ app_type.color if app_type else '#8b5cf6' }}" class="form-input" style="height:40px;padding:4px;" /></div>
           <div><label class="form-label">Sort Order</label><input type="number" name="sort_order" value="{{ app_type.sort_order if app_type else 0 }}" class="form-input" /></div>
           <div><label class="form-label">Max Applications</label><input type="number" name="max_applications" value="{{ app_type.max_applications if app_type else 1 }}" class="form-input" min="0" /></div>
         </div>
@@ -50,7 +50,7 @@
         <p style="font-size:0.75rem;color:var(--text-muted);margin-bottom:1rem;">Select which Discord roles to <strong>add</strong> or <strong>remove</strong> at each stage of the application.</p>
 
         {% for event_key, event_label, event_color in [
-          ('on_submit',         'On Submit',          '#6366f1'),
+          ('on_submit',         'On Submit',          '#8b5cf6'),
           ('on_approve',        'On Approve',         '#22c55e'),
           ('on_deny',           'On Deny',            '#ef4444'),
         ] %}
@@ -155,9 +155,9 @@
   <div>
     <div class="card" style="margin-bottom:1rem;">
       <div class="card-title" style="margin-bottom:0.875rem;">Preview Card</div>
-      <div id="preview-card" class="card" style="border-color:#6366f133;">
+      <div id="preview-card" class="card" style="border-color:#8b5cf633;">
         <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.75rem;">
-          <div id="preview-icon" style="width:36px;height:36px;border-radius:10px;background:#6366f122;display:flex;align-items:center;justify-content:center;color:#6366f1;font-size:1.1rem;">
+          <div id="preview-icon" style="width:36px;height:36px;border-radius:10px;background:#8b5cf622;display:flex;align-items:center;justify-content:center;color:#8b5cf6;font-size:1.1rem;">
             <i class="ti ti-file-text"></i>
           </div>
           <div>

@@ -594,7 +594,7 @@ class SiteSettings(db.Model):
         'site_tagline': ('A FiveM Community', 'string', 'Site tagline', 'branding'),
         'site_logo': ('', 'string', 'Logo file path', 'branding'),
         'site_favicon': ('', 'string', 'Favicon file path', 'branding'),
-        'primary_color': ('#6366f1', 'string', 'Primary accent color', 'branding'),
+        'primary_color': ('#8b5cf6', 'string', 'Primary accent color', 'branding'),
         'discord_invite': ('', 'string', 'Discord server invite link', 'discord'),
         'require_discord': ('true', 'bool', 'Require Discord to apply', 'applications'),
         'maintenance_mode': ('false', 'bool', 'Enable maintenance mode', 'general'),

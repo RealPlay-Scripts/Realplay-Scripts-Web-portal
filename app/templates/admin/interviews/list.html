@@ -6,7 +6,7 @@
   <div>
     <h1 class="page-title">📅  Interviews</h1>
     <p style="color:var(--text-muted);font-size:0.875rem;margin-top:0.25rem;">
-      Manage scheduled interview sessions. Pending: <strong style="color:#f59e0b;">{{ pending }}</strong> &nbsp;·&nbsp; Upcoming: <strong style="color:#6366f1;">{{ upcoming }}</strong>
+      Manage scheduled interview sessions. Pending: <strong style="color:#f59e0b;">{{ pending }}</strong> &nbsp;·&nbsp; Upcoming: <strong style="color:#8b5cf6;">{{ upcoming }}</strong>
     </p>
   </div>
 </div>
@@ -99,7 +99,7 @@
         <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
           {% if iv.status == 'pending' %}
           <button type="submit" name="action" value="confirm"
-                  class="btn btn-sm" style="background:#6366f1;color:#fff;border:none;">
+                  class="btn btn-sm" style="background:#8b5cf6;color:#fff;border:none;">
             <i class="ti ti-check"></i> Confirm
           </button>
           {% endif %}

@@ -167,7 +167,7 @@ async function loadOverview() {
   // Stat grid
   const statDefs = [
     ['Online', d.live_count, 'ti-users', '#22c55e'],
-    ['Today Playtime', d.playtime_today, 'ti-clock', '#6366f1'],
+    ['Today Playtime', d.playtime_today, 'ti-clock', '#8b5cf6'],
     ['Week Playtime', d.playtime_week, 'ti-calendar-week', '#3b82f6'],
     ['Kills (7d)', d.kills_week, 'ti-sword', '#ef4444'],
     ['Deaths (7d)', d.deaths_week, 'ti-skull', '#f59e0b'],
@@ -262,7 +262,7 @@ async function loadLeaderboard(period = 'weekly') {
 async function loadPeakHours() {
   const d = await fetch('/analytics/data/peak-hours').then(r => r.json()).catch(() => null);
   if (!d) return;
-  const accent = '#6366f1';
+  const accent = '#8b5cf6';
   if (!peakChart) {
     peakChart = new Chart(document.getElementById('peakChart'), {
       type: 'bar',
@@ -290,7 +290,7 @@ async function loadRetention() {
       type: 'doughnut',
       data: {
         labels: labels.map(l => l + ' sessions'),
-        datasets: [{ data: values, backgroundColor: ['#6366f188','#3b82f688','#22c55e88','#f59e0b88','#ef444488'], borderColor: ['#6366f1','#3b82f6','#22c55e','#f59e0b','#ef4444'], borderWidth: 2 }]
+        datasets: [{ data: values, backgroundColor: ['#8b5cf688','#3b82f688','#22c55e88','#f59e0b88','#ef444488'], borderColor: ['#8b5cf6','#3b82f6','#22c55e','#f59e0b','#ef4444'], borderWidth: 2 }]
       },
       options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { font: { size: 10 }, padding: 8 } } } }
     });

@@ -234,7 +234,7 @@ async function loadCrashData(forceRefresh){
     ['Crashes (7d)',d.crashes_7d,'ti-alert-circle','#ef4444',''],
     ['Timeouts (7d)',d.timeouts_7d,'ti-clock-x','#f59e0b',''],
     ['Net Drops (7d)',d.network_drops_7d,'ti-wifi-off','#f97316',''],
-    ['Avg Ping @Crash',d.avg_ping_at_crash+'ms','ti-signal','#6366f1',''],
+    ['Avg Ping @Crash',d.avg_ping_at_crash+'ms','ti-signal','#8b5cf6',''],
     ['Total Incidents',d.total_incidents,'ti-exclamation-circle','#8b5cf6',''],
     ['Last Hour','—','ti-clock','#22c55e','live-stat-hr'],
   ].map(function(row){
@@ -252,7 +252,7 @@ async function loadCrashData(forceRefresh){
   if(_crashTrendChart){_crashTrendChart.destroy();_crashTrendChart=null;}
   _crashTrendChart=new Chart(document.getElementById('crashTrend'),{type:'bar',data:{labels:d.daily_trend.map(function(x){return x.day;}),datasets:[{label:'Crashes',data:d.daily_trend.map(function(x){return x.crashes;}),backgroundColor:'#ef444477',borderColor:'#ef4444',borderWidth:1.5,borderRadius:3},{label:'Timeouts',data:d.daily_trend.map(function(x){return x.timeouts;}),backgroundColor:'#f59e0b77',borderColor:'#f59e0b',borderWidth:1.5,borderRadius:3}]},options:{responsive:true,plugins:{legend:{position:'top'}},scales:{x:{grid:{display:false}},y:{beginAtZero:true,grid:{color:'rgba(99,102,241,0.08)'}}}}});
 
-  var rc=['#ef4444','#f59e0b','#f97316','#22c55e','#6366f1','#8b5cf6'];
+  var rc=['#ef4444','#f59e0b','#f97316','#22c55e','#8b5cf6','#8b5cf6'];
   if(_rootCauseChart){_rootCauseChart.destroy();_rootCauseChart=null;}
   _rootCauseChart=new Chart(document.getElementById('rootCause'),{type:'doughnut',data:{labels:d.root_causes.map(function(r){return r.category;}),datasets:[{data:d.root_causes.map(function(r){return r.count;}),backgroundColor:rc.map(function(c){return c+'88';}),borderColor:rc,borderWidth:2}]},options:{responsive:true,plugins:{legend:{position:'bottom'}}}});
 
@@ -293,7 +293,7 @@ async function loadCrashData(forceRefresh){
     }).join('');
   }
 
-  var pc2={high:'#ef4444',medium:'#f59e0b',low:'#6366f1'};
+  var pc2={high:'#ef4444',medium:'#f59e0b',low:'#8b5cf6'};
   document.getElementById('suggestions').innerHTML=!d.suggestions.length?'<p style="color:var(--text-subtle);text-align:center;padding:1rem;">No server-wide issues detected — health looks good!</p>':d.suggestions.map(function(s){var sh=(s.steps||[]).map(function(step,i){return'<li style="margin-bottom:0.4rem;"><span style="color:var(--text-subtle);margin-right:0.375rem;">'+(i+1)+'.</span>'+step+'</li>';}).join('');return'<div style="border:1px solid '+pc2[s.priority]+'33;border-radius:10px;margin-bottom:0.625rem;overflow:hidden;"><div style="padding:0.875rem 1rem;cursor:pointer;display:flex;align-items:center;gap:0.75rem;" onclick="this.nextElementSibling.classList.toggle(\'hidden\')"><span class="badge" style="background:'+pc2[s.priority]+'22;color:'+pc2[s.priority]+';border-color:'+pc2[s.priority]+'44;font-size:0.65rem;flex-shrink:0;">'+s.priority.toUpperCase()+'</span><span style="font-weight:600;font-size:0.875rem;flex:1;">'+s.issue+'</span><span style="font-family:\'JetBrains Mono\',monospace;font-size:0.8rem;color:var(--text-subtle);flex-shrink:0;">'+s.count+'×</span><i class="ti ti-chevron-down" style="color:var(--text-subtle);flex-shrink:0;"></i></div><div class="hidden" style="padding:0 1rem 1rem 1rem;border-top:1px solid var(--border);background:var(--surface-3);"><ul style="margin:0.75rem 0 0;padding-left:1.25rem;font-size:0.82rem;color:var(--text-primary);line-height:1.7;">'+sh+'</ul></div></div>';}).join('');
 
   _allIncidents=d.recent_incidents;

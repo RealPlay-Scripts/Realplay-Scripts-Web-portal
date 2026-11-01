@@ -2,31 +2,75 @@
 {% block title %}Sign In{% endblock %}
 
 {% block content %}
-<div style="min-height:calc(100vh - 61px);display:flex;align-items:center;justify-content:center;padding:2rem;">
-  <div style="width:100%;max-width:420px;">
+<div style="min-height:calc(100vh - 57px);display:grid;grid-template-columns:1.1fr 1fr;">
 
-    <!-- Logo -->
-    <div style="text-align:center;margin-bottom:2rem;">
-      <div style="width:52px;height:52px;background:var(--accent);border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;font-size:1.3rem;font-weight:900;color:#fff;">CF</div>
-      <h1 style="font-size:1.75rem;font-weight:800;letter-spacing:-0.03em;margin-bottom:0.375rem;">Welcome back</h1>
-      <p style="color:var(--text-muted);font-size:0.9rem;">Sign in to your {{ site.site_name }} account</p>
+  <!-- Left: brand panel -->
+  <div style="position:relative;overflow:hidden;background:var(--surface-1);border-right:1px solid var(--border);display:flex;flex-direction:column;justify-content:space-between;padding:3rem;">
+    <div style="position:absolute;inset:0;background:radial-gradient(ellipse 60% 50% at 30% 20%,color-mix(in srgb,var(--accent) 22%,transparent),transparent 65%),radial-gradient(ellipse 50% 40% at 90% 90%,color-mix(in srgb,var(--accent-2) 16%,transparent),transparent 60%);pointer-events:none;"></div>
+
+    <a href="{{ url_for('main.index') }}" style="position:relative;text-decoration:none;display:flex;align-items:center;gap:10px;">
+      <div class="nav-logo-mark">{{ (site.site_name or 'RP')[:2]|upper }}</div>
+      <span class="nav-logo" style="font-size:1.1rem;">{{ site.site_name }}</span>
+    </a>
+
+    <div style="position:relative;">
+      <h1 style="font-size:clamp(1.75rem,3vw,2.5rem);font-weight:800;line-height:1.15;margin-bottom:1rem;">
+        Your roleplay story<br/>continues here.
+      </h1>
+      <p style="color:var(--text-muted);font-size:0.95rem;max-width:380px;line-height:1.65;margin-bottom:2rem;">
+        {{ site.site_tagline or 'Sign in to pick up right where you left off.' }}
+      </p>
+      <div style="display:flex;flex-direction:column;gap:0.875rem;">
+        {% for icon, text in [('ti-bolt','Live server stats & whitelist status'), ('ti-brand-discord','Discord-linked identity'), ('ti-shield-check','Staff-reviewed applications')] %}
+        <div style="display:flex;align-items:center;gap:.7rem;">
+          <div style="width:30px;height:30px;border-radius:9px;background:var(--accent-dim);display:flex;align-items:center;justify-content:center;color:var(--accent);flex-shrink:0;">
+            <i class="ti {{ icon }}" style="font-size:.95rem;"></i>
+          </div>
+          <span style="font-size:.85rem;color:var(--text-muted);">{{ text }}</span>
+        </div>
+        {% endfor %}
+      </div>
     </div>
 
-    <div class="card" style="padding:2rem;">
+    <p style="position:relative;font-size:.74rem;color:var(--text-subtle);">© {{ now().year }} {{ site.site_name }}</p>
+  </div>
+
+  <!-- Right: form -->
+  <div style="display:flex;align-items:center;justify-content:center;padding:2rem;">
+    <div style="width:100%;max-width:380px;">
+
+      <div style="margin-bottom:1.75rem;">
+        <h2 style="font-size:1.5rem;font-weight:800;letter-spacing:-0.02em;margin-bottom:0.375rem;">Welcome back</h2>
+        <p style="color:var(--text-muted);font-size:0.86rem;">Sign in to your account to continue</p>
+      </div>
+
+      <a href="{{ url_for('auth.register_discord') }}"
+         style="display:flex;align-items:center;justify-content:center;gap:0.625rem;width:100%;padding:0.7rem;background:#5865F2;color:#fff;border-radius:10px;text-decoration:none;font-weight:700;font-size:0.85rem;transition:transform .15s,box-shadow .15s;box-shadow:0 6px 20px -6px rgba(88,101,242,.55);"
+         onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform=''">
+        <svg width="18" height="18" viewBox="0 0 71 55" fill="currentColor" style="flex-shrink:0;">
+          <path d="M60.1 4.9A58.5 58.5 0 0 0 45.5.4a.2.2 0 0 0-.2.1 40.8 40.8 0 0 0-1.8 3.7 54 54 0 0 0-16.2 0 37.4 37.4 0 0 0-1.9-3.7.2.2 0 0 0-.2-.1A58.4 58.4 0 0 0 10.6 4.9a.2.2 0 0 0-.1.1C1.6 18.3-.9 31.3.3 44.1a.2.2 0 0 0 .1.2A58.8 58.8 0 0 0 18.1 54a.2.2 0 0 0 .2-.1 42 42 0 0 0 3.6-5.9.2.2 0 0 0-.1-.3 38.7 38.7 0 0 1-5.5-2.6.2.2 0 0 1 0-.4l1.1-.8a.2.2 0 0 1 .2 0c11.5 5.2 23.9 5.2 35.3 0a.2.2 0 0 1 .2 0l1.1.8a.2.2 0 0 1 0 .4 36.2 36.2 0 0 1-5.5 2.6.2.2 0 0 0-.1.3 47.1 47.1 0 0 0 3.6 5.9.2.2 0 0 0 .2.1 58.6 58.6 0 0 0 17.7-9.7.2.2 0 0 0 .1-.2c1.5-15-2.5-28-10.4-39.2a.2.2 0 0 0-.1-.1z"/>
+        </svg>
+        Continue with Discord
+      </a>
+
+      <div style="display:flex;align-items:center;gap:1rem;margin:1.25rem 0;">
+        <div style="flex:1;height:1px;background:var(--border);"></div>
+        <span style="font-size:0.66rem;color:var(--text-subtle);text-transform:uppercase;letter-spacing:0.1em;">or sign in with email</span>
+        <div style="flex:1;height:1px;background:var(--border);"></div>
+      </div>
+
       <form method="POST" action="{{ url_for('auth.login') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token is defined else '' }}"/>
 
-        <div style="margin-bottom:1.25rem;">
+        <div style="margin-bottom:1rem;">
           <label class="form-label" for="identifier">Username or Email</label>
           <input type="text" id="identifier" name="identifier" class="form-input"
                  placeholder="yourname or you@example.com" required autofocus
                  value="{{ request.form.get('identifier', '') }}" />
         </div>
 
-        <div style="margin-bottom:1.5rem;">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.375rem;">
-            <label class="form-label" for="password" style="margin-bottom:0;">Password</label>
-          </div>
+        <div style="margin-bottom:1.25rem;">
+          <label class="form-label" for="password" style="margin-bottom:0.375rem;">Password</label>
           <div style="position:relative;">
             <input type="password" id="password" name="password" class="form-input"
                    placeholder="••••••••" required />
@@ -36,41 +80,29 @@
           </div>
         </div>
 
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;">
-          <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-size:0.875rem;color:var(--text-muted);">
-            <input type="checkbox" name="remember" style="accent-color:var(--accent);" /> Remember me
-          </label>
-        </div>
+        <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-size:0.84rem;color:var(--text-muted);margin-bottom:1.25rem;">
+          <input type="checkbox" name="remember" style="accent-color:var(--accent);" /> Remember me
+        </label>
 
         <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:0.75rem;">
           <i class="ti ti-login"></i> Sign In
         </button>
       </form>
 
-      <div style="display:flex;align-items:center;gap:1rem;margin:1.25rem 0;">
-        <div style="flex:1;height:1px;background:var(--border);"></div>
-        <span style="font-size:0.68rem;color:var(--text-subtle);text-transform:uppercase;letter-spacing:0.08em;">or</span>
-        <div style="flex:1;height:1px;background:var(--border);"></div>
-      </div>
-
-      <a href="{{ url_for('auth.register_discord') }}"
-         style="display:flex;align-items:center;justify-content:center;gap:0.625rem;width:100%;padding:0.6rem;background:#5865F2;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:0.82rem;transition:opacity 0.15s;"
-         onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
-        <svg width="18" height="18" viewBox="0 0 71 55" fill="currentColor" style="flex-shrink:0;">
-          <path d="M60.1 4.9A58.5 58.5 0 0 0 45.5.4a.2.2 0 0 0-.2.1 40.8 40.8 0 0 0-1.8 3.7 54 54 0 0 0-16.2 0 37.4 37.4 0 0 0-1.9-3.7.2.2 0 0 0-.2-.1A58.4 58.4 0 0 0 10.6 4.9a.2.2 0 0 0-.1.1C1.6 18.3-.9 31.3.3 44.1a.2.2 0 0 0 .1.2A58.8 58.8 0 0 0 18.1 54a.2.2 0 0 0 .2-.1 42 42 0 0 0 3.6-5.9.2.2 0 0 0-.1-.3 38.7 38.7 0 0 1-5.5-2.6.2.2 0 0 1 0-.4l1.1-.8a.2.2 0 0 1 .2 0c11.5 5.2 23.9 5.2 35.3 0a.2.2 0 0 1 .2 0l1.1.8a.2.2 0 0 1 0 .4 36.2 36.2 0 0 1-5.5 2.6.2.2 0 0 0-.1.3 47.1 47.1 0 0 0 3.6 5.9.2.2 0 0 0 .2.1 58.6 58.6 0 0 0 17.7-9.7.2.2 0 0 0 .1-.2c1.5-15-2.5-28-10.4-39.2a.2.2 0 0 0-.1-.1z"/>
-        </svg>
-        Continue with Discord
-      </a>
-
+      <p style="text-align:center;margin-top:1.5rem;font-size:0.85rem;color:var(--text-muted);">
+        Don't have an account?
+        <a href="{{ url_for('auth.register') }}" style="color:var(--accent);font-weight:700;text-decoration:none;">Create one</a>
+      </p>
     </div>
-
-    <p style="text-align:center;margin-top:1.25rem;font-size:0.875rem;color:var(--text-muted);">
-      Don't have an account?
-      <a href="{{ url_for('auth.register') }}" style="color:var(--accent);font-weight:600;text-decoration:none;">Create one</a>
-    </p>
-
   </div>
 </div>
+
+<style>
+  @media (max-width: 900px) {
+    div[style*="grid-template-columns:1.1fr 1fr"] { grid-template-columns: 1fr !important; }
+    div[style*="grid-template-columns:1.1fr 1fr"] > div:first-child { display: none; }
+  }
+</style>
 
 <script>
   function togglePw() {

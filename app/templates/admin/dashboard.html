@@ -3,21 +3,21 @@
 {% block admin_content %}
 
 {% if stats.unreviewed_flags > 0 %}
-<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:10px;padding:1rem 1.25rem;margin-bottom:1.25rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
+<div style="background:rgba(251,113,133,0.08);border:1px solid rgba(251,113,133,0.3);border-radius:var(--radius);padding:1rem 1.25rem;margin-bottom:1.25rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
   <div style="display:flex;align-items:center;gap:0.875rem;">
-    <div style="width:40px;height:40px;border-radius:10px;background:#ef444422;display:flex;align-items:center;justify-content:center;color:#ef4444;font-size:1.2rem;flex-shrink:0;">
+    <div style="width:40px;height:40px;border-radius:10px;background:rgba(251,113,133,0.15);display:flex;align-items:center;justify-content:center;color:var(--red);font-size:1.2rem;flex-shrink:0;">
       <i class="ti ti-alert-triangle"></i>
     </div>
     <div>
-      <div style="font-weight:700;color:#ef4444;font-size:0.95rem;">
+      <div style="font-weight:700;color:var(--red);font-size:0.95rem;">
         {{ stats.unreviewed_flags }} Suspicious Economy Flag{{ 's' if stats.unreviewed_flags != 1 else '' }} Detected
       </div>
-      <div style="font-size:0.82rem;color:#b91c1c;">
+      <div style="font-size:0.82rem;color:var(--text-muted);">
         Player{{ 's have' if stats.unreviewed_flags != 1 else ' has' }} received more than $10,000 in a 24-hour window. Review required.
       </div>
     </div>
   </div>
-  <a href="{{ url_for('analytics.economy_flags_page') }}" class="btn btn-sm" style="background:#ef4444;color:#fff;border:none;white-space:nowrap;">
+  <a href="{{ url_for('analytics.economy_flags_page') }}" class="btn btn-danger btn-sm" style="white-space:nowrap;">
     <i class="ti ti-eye"></i> Review Flags
   </a>
 </div>
@@ -60,7 +60,7 @@
 <!-- Stat cards -->
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;margin-bottom:1.5rem;">
   {% for label,val,icon,color in [
-    ('Total Users', stats.total_users, 'users', '#6366f1'),
+    ('Total Users', stats.total_users, 'users', '#8b5cf6'),
     ('Pending Apps', stats.pending_applications, 'clock', '#f59e0b'),
     ('Approved', stats.approved_applications, 'circle-check', '#22c55e'),
     ('Denied', stats.denied_applications, 'circle-x', '#ef4444'),
@@ -184,7 +184,7 @@
 </div>
 
 <script>
-const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#6366f1';
+const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#8b5cf6';
 const days = {{ daily_apps | tojson }};
 new Chart(document.getElementById('appsChart'), {
   type: 'bar',
@@ -199,7 +199,7 @@ new Chart(document.getElementById('appsChart'), {
       borderRadius: 6,
     }]
   },
-  options: { responsive:true, plugins:{legend:{display:false}}, scales:{x:{grid:{display:false}},y:{beginAtZero:true,grid:{color:'rgba(99,102,241,0.08)'}}} }
+  options: { responsive:true, plugins:{legend:{display:false}}, scales:{x:{grid:{display:false}},y:{beginAtZero:true,grid:{color:'rgba(255,255,255,0.06)'}}} }
 });
 new Chart(document.getElementById('statusChart'), {
   type: 'doughnut',

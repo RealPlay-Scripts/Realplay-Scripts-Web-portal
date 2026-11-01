@@ -109,7 +109,7 @@ async function loadEconomy() {
     ['Players Online',     d.online_players,                    'ti-users',         '#22c55e'],
     ['Live Cash Total',    fmt(d.total_cash_in_game),           'ti-coin',          '#f59e0b'],
     ['Live Bank Total',    fmt(d.total_bank_in_game),           'ti-building-bank', '#3b82f6'],
-    ['Total Wealth Live',  fmt(d.total_wealth_in_game),         'ti-wallet',        '#6366f1'],
+    ['Total Wealth Live',  fmt(d.total_wealth_in_game),         'ti-wallet',        '#8b5cf6'],
     ['Avg per Player',     fmt(d.avg_cash_per_player + d.avg_bank_per_player), 'ti-chart-bar', '#8b5cf6'],
   ].map(function(row) {
     return '<div class="stat-card">' +
@@ -133,7 +133,7 @@ async function loadEconomy() {
       labels: d.daily_wealth.map(function(x) { return x.day; }),
       datasets: [
         { label: 'Avg Total Wealth',  data: d.daily_wealth.map(function(x) { return x.avg_total; }),
-          borderColor: '#6366f1', backgroundColor: '#6366f122', fill: true, tension: 0.4, pointRadius: 3, pointBackgroundColor: '#6366f1' },
+          borderColor: '#8b5cf6', backgroundColor: '#8b5cf622', fill: true, tension: 0.4, pointRadius: 3, pointBackgroundColor: '#8b5cf6' },
       ]
     },
     options: {
@@ -221,7 +221,7 @@ async function loadEconomy() {
     ['Sessions this week',    d.week_sessions,                      'ti-clock', 'var(--text-muted)'],
     ['Avg cash at logout',    fmt(d.avg_cash_leave_week),           'ti-coin',  '#f59e0b'],
     ['Avg bank at logout',    fmt(d.avg_bank_leave_week),           'ti-building-bank', '#3b82f6'],
-    ['Avg total at logout',   fmt(d.avg_cash_leave_week + d.avg_bank_leave_week), 'ti-wallet', '#6366f1'],
+    ['Avg total at logout',   fmt(d.avg_cash_leave_week + d.avg_bank_leave_week), 'ti-wallet', '#8b5cf6'],
   ].map(function(row) {
     return '<div style="display:flex;align-items:center;justify-content:space-between;padding:0.625rem 0;border-bottom:1px solid var(--border);">' +
       '<div style="display:flex;align-items:center;gap:0.5rem;font-size:0.85rem;color:var(--text-muted);">' +

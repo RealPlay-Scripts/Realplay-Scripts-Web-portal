@@ -93,7 +93,7 @@
             <div style="font-weight:600;font-size:0.85rem;">{{ lim.label }}</div>
             <div style="display:flex;gap:4px;margin-top:3px;flex-wrap:wrap;">
               {% if lim.source == 'under_18' %}
-                <span class="badge" style="background:#fef2f2;color:#dc2626;border-color:#fca5a5;font-size:0.6rem;">🔞 Under 18</span>
+                <span class="badge" style="background:rgba(251,113,133,0.12);color:var(--red);border-color:rgba(251,113,133,0.35);font-size:0.6rem;">🔞 Under 18</span>
               {% elif lim.source == 'admin' %}
                 <span class="badge badge-gray" style="font-size:0.6rem;">Admin</span>
               {% else %}
@@ -109,7 +109,7 @@
           <td>
             <div style="display:flex;flex-wrap:wrap;gap:3px;">
               {% if lim.no_firearm %}
-                <span class="badge" style="background:#fef2f2;color:#dc2626;border-color:#fca5a5;font-size:0.62rem;">🔫 No Firearm</span>
+                <span class="badge" style="background:rgba(251,113,133,0.12);color:var(--red);border-color:rgba(251,113,133,0.35);font-size:0.62rem;">🔫 No Firearm</span>
               {% endif %}
               {% if lim.no_create_priority %}
                 <span class="badge badge-orange" style="font-size:0.62rem;">🚫 No Create Priority</span>
@@ -452,7 +452,7 @@ function openEditModal(data) {
 .action-btn--revoke:hover {
   background: rgba(239,68,68,0.2);
   border-color: #f87171;
-  color: #fca5a5;
+  color: rgba(251,113,133,0.35);
 }
 
 /* ── Modals ───────────────────────────────────────────────────────────────── */

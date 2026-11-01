@@ -2137,54 +2137,32 @@ Then output your patch JSON."""
 @login_required
 @_admin_required
 def self_heal_apply():
-    """Apply a patch proposed by the AI engine."""
-    data     = request.get_json(silent=True) or {}
-    file_key = data.get('file', '')
-    find     = data.get('find', '')
-    replace  = data.get('replace', '')
-
-    if not file_key or not find:
-        return jsonify({'success': False, 'error': 'Missing file or find string'}), 400
-
-    path = _SOURCE_FILES.get(file_key)
-    if not path or not _os.path.exists(path):
-        return jsonify({'success': False, 'error': f'File not found: {file_key}'}), 404
-
-    with _SH_LOCK:
-        with open(path, 'r') as fh:
-            original = fh.read()
-
-        if find not in original:
-            return jsonify({'success': False, 'error': 'Target string not found in file — patch may be stale'}), 409
-
-        count = original.count(find)
-        if count > 1:
-            return jsonify({'success': False, 'error': f'Target string is ambiguous ({count} matches) — refine the patch'}), 409
-
-        patched = original.replace(find, replace, 1)
-
-        # Write backup
-        backup_path = path + '.selfheal.bak'
-        with open(backup_path, 'w') as fh:
-            fh.write(original)
-
-        with open(path, 'w') as fh:
-            fh.write(patched)
-
+    """
+    DISABLED — live writes to the app's own source (including its own
+    access-control files) are a standing remote-code-execution risk for any
+    admin-session compromise, independent of how that compromise happens.
+    See the security audit (finding 1 / remediation) for the full chain this
+    closes off. `self_heal_analyse`/`self_heal_chat` still propose a patch —
+    an operator must apply it manually (review the diff, edit the file,
+    deploy through the normal code-review path) rather than live-patching
+    the running process.
+    """
     from app.models import AuditLog
     AuditLog.log(
-        action='self_heal_patch',
+        action='self_heal_patch_blocked',
         user_id=current_user.id,
         resource_type='source_file',
-        resource_id=file_key,
-        details={'find_preview': find[:120], 'applied_by': current_user.username},
+        resource_id=(request.get_json(silent=True) or {}).get('file', ''),
+        details={'reason': 'self-heal live patching is disabled; apply suggested patches manually'},
     )
     try:
         db.session.commit()
     except Exception:
         db.session.rollback()
-
-    return jsonify({'success': True, 'backup': backup_path})
+    return jsonify({
+        'success': False,
+        'error': 'Self-heal live patching is disabled. Review the suggested patch and apply it manually through a normal code change.',
+    }), 410
 
 
 @analytics_bp.route('/self-heal/chat', methods=['POST'])

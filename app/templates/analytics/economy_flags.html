@@ -200,7 +200,7 @@ async function viewPlayer(discordId) {
   document.getElementById('modal-stats').innerHTML = [
     ['Current Cash',  fmt(d.current_cash),  '#f59e0b'],
     ['Current Bank',  fmt(d.current_bank),  '#3b82f6'],
-    ['Peak Wealth',   fmt(d.peak_wealth),   '#6366f1'],
+    ['Peak Wealth',   fmt(d.peak_wealth),   '#8b5cf6'],
     ['Flags Raised',  d.flags.length,       d.flags.length > 0 ? '#ef4444' : '#22c55e'],
   ].map(function(row) {
     return '<div class="stat-card" style="padding:0.75rem;">' +
@@ -219,7 +219,7 @@ async function viewPlayer(discordId) {
     data: {
       labels: labels,
       datasets: [
-        { type: 'line', label: 'Total Wealth', data: totals, borderColor: '#6366f1', backgroundColor: '#6366f111',
+        { type: 'line', label: 'Total Wealth', data: totals, borderColor: '#8b5cf6', backgroundColor: '#8b5cf611',
           fill: true, tension: 0.3, pointRadius: 2, yAxisID: 'y' },
         { type: 'bar',  label: 'Daily Change', data: gains,
           backgroundColor: gains.map(function(g) { return g >= 0 ? '#22c55e55' : '#ef444455'; }),
@@ -249,7 +249,7 @@ async function viewPlayer(discordId) {
     tbody.innerHTML = d.history.slice().reverse().map(function(h) {
       var gc = h.gain >= 0 ? '#22c55e' : '#ef4444';
       var flagDay = Math.abs(h.gain) >= 10000;
-      return '<tr data-date="' + h.date + '"' + (flagDay ? ' style="background:#fef2f2;"' : '') + '>' +
+      return '<tr data-date="' + h.date + '"' + (flagDay ? ' style="background:rgba(251,113,133,0.12);"' : '') + '>' +
         '<td style="font-family:\'JetBrains Mono\',monospace;font-size:0.8rem;">' + h.date + (flagDay ? ' ⚠' : '') + '</td>' +
         '<td style="font-family:\'JetBrains Mono\',monospace;font-size:0.8rem;color:#f59e0b;">' + fmt(h.cash) + '</td>' +
         '<td style="font-family:\'JetBrains Mono\',monospace;font-size:0.8rem;color:#3b82f6;">' + fmt(h.bank) + '</td>' +
@@ -267,9 +267,9 @@ async function viewPlayer(discordId) {
     flagsEl.innerHTML = '<p style="color:var(--text-subtle);font-size:0.85rem;">No flags on this account.</p>';
   } else {
     flagsEl.innerHTML = d.flags.map(function(f) {
-      return '<div style="border:1px solid #fca5a5;border-radius:8px;padding:0.625rem 0.875rem;background:#fef2f2;display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">' +
+      return '<div style="border:1px solid rgba(251,113,133,0.35);border-radius:8px;padding:0.625rem 0.875rem;background:rgba(251,113,133,0.12);display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">' +
         '<span style="font-family:\'JetBrains Mono\',monospace;font-weight:700;color:#ef4444;">' + fmt(f.amount_gain) + '</span>' +
-        '<span style="font-size:0.8rem;color:#b91c1c;">gained in 24h</span>' +
+        '<span style="font-size:0.8rem;color:var(--red);">gained in 24h</span>' +
         '<span style="font-size:0.75rem;color:var(--text-subtle);">' + (f.detected_at||'').substr(0,16).replace('T',' ') + '</span>' +
         (f.is_reviewed
           ? '<span class="badge badge-green" style="font-size:0.6rem;margin-left:auto;">Reviewed</span>'
@@ -399,7 +399,7 @@ function _startModalPoll(discordId) {
           statsEl.innerHTML = [
             ['Current Cash',  fmt(d.current_cash),  '#f59e0b'],
             ['Current Bank',  fmt(d.current_bank),  '#3b82f6'],
-            ['Peak Wealth',   fmt(d.peak_wealth),   '#6366f1'],
+            ['Peak Wealth',   fmt(d.peak_wealth),   '#8b5cf6'],
             ['Flags',         d.flags.length,       d.flags.length > 0 ? '#ef4444' : '#22c55e'],
           ].map(function(row) {
             return '<div class="stat-card" style="padding:0.75rem;">' +
