@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+*.selfheal.bak
+*.bak
+*.bak_*
+
+venv/
+.venv/
+env/
+
+.env
+instance/
+*.db
+*.sqlite3
+
+.DS_Store
+*.log
