@@ -33,6 +33,7 @@ class Config:
 
     # FiveM
     FIVEM_API_KEY = os.environ.get('FIVEM_API_KEY', '')
+    MONITOR_API_KEY = os.environ.get('MONITOR_API_KEY', '')
 
     # API
     API_KEY_SECRET = os.environ.get('API_KEY_SECRET', 'api-secret-change-me')

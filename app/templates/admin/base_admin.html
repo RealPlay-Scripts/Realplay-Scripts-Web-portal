@@ -68,9 +68,9 @@
         <i class="ti ti-alert-triangle"></i> Economy Flags
         <span id="sb-flag-count" style="margin-left:auto;background:var(--accent-dim);color:var(--accent);border-radius:10px;padding:0 6px;font-size:0.65rem;font-weight:700;display:none;"></span>
       </a>
-      <span class="sidebar-link" style="opacity:0.4;cursor:default;pointer-events:none;">
+      <a href="{{ url_for('monitor.monitor_page') }}" class="sidebar-link {% if request.endpoint == 'monitor.monitor_page' %}active{% endif %}">
         <i class="ti ti-device-desktop-analytics"></i> Player Monitor
-      </span>
+      </a>
     </div>
 
     <div class="sidebar-section">

@@ -1,42 +1,41 @@
 """
-app/monitor/__init__.py + routes.py combined into one file.
+app/monitor/routes.py — Player Monitor (live screenshot feed)
 
-Add to your app factory (e.g. app/__init__.py):
-
-    from app.monitor.routes import monitor_bp
-    app.register_blueprint(monitor_bp)
-
-This blueprint adds:
-  POST /api/monitor/frame          — receives screenshot from FiveM client
-  GET  /api/monitor/latest         — returns latest frames for all players (JSON)
+  POST /api/monitor/frame          — receives a screenshot from the FiveM server
+  GET  /api/monitor/latest         — returns latest frame metadata for all players (JSON)
   GET  /api/monitor/frame/<server_id> — returns raw JPEG for one player
   GET  /admin/monitor              — the web UI page
+
+Frames are stored in Redis (REDIS_URL), not in-process memory — the live
+deployment runs multiple gunicorn workers, and an in-memory dict would only
+be visible to whichever worker happened to receive a given request.
 """
 
 import time
-import threading
 from flask import Blueprint, request, jsonify, abort, Response, render_template, current_app
 from functools import wraps
 
 monitor_bp = Blueprint('monitor', __name__)
 
-# ──────────────────────────────────────────────────────────────
-# In-memory frame store
-# { server_id (str) : { 'name': str, 'frame': bytes, 'ts': float } }
-# Frames expire after FRAME_TTL seconds (player disconnected / stopped sending)
-# ──────────────────────────────────────────────────────────────
-_frames: dict = {}
-_frames_lock = threading.Lock()
-FRAME_TTL = 10  # seconds — if no new frame arrives, slot goes stale
+FRAME_TTL = 10  # seconds — Redis key TTL; if no new frame arrives, the entry expires
+_REDIS_PREFIX = 'monitor:frame:'
+
+
+def _redis():
+    """Lazily create and cache a redis client on the app object."""
+    if not hasattr(current_app, '_monitor_redis'):
+        import redis
+        current_app._monitor_redis = redis.from_url(current_app.config.get('REDIS_URL', 'redis://localhost:6379/0'))
+    return current_app._monitor_redis
 
 
 def _require_api_key(f):
-    """Decorator — validates X-API-Key header matches BOT_API_KEY in app config."""
+    """Decorator — validates X-API-Key header matches MONITOR_API_KEY in app config."""
     @wraps(f)
     def decorated(*args, **kwargs):
         key = request.headers.get('X-API-Key') or request.args.get('api_key')
-        expected = current_app.config.get('BOT_API_KEY') or current_app.config.get('API_KEY')
-        if not key or key != expected:
+        expected = current_app.config.get('MONITOR_API_KEY')
+        if not expected or not key or key != expected:
             abort(401)
         return f(*args, **kwargs)
     return decorated
@@ -46,24 +45,17 @@ def _require_admin_session(f):
     """Decorator — ensures the browser session is an authenticated admin."""
     @wraps(f)
     def decorated(*args, **kwargs):
-        # Import here to avoid circular imports
         from flask_login import current_user
-        if not current_user.is_authenticated:
+        if not current_user.is_authenticated or not getattr(current_user, 'is_admin', False):
             abort(403)
-        # Check admin role — adjust to match your User model
-        if not getattr(current_user, 'is_admin', False):
-            # Try role-based check if your app uses roles
-            roles = getattr(current_user, 'roles', [])
-            role_names = [getattr(r, 'name', '') for r in roles]
-            if 'admin' not in role_names and 'staff' not in role_names:
-                abort(403)
         return f(*args, **kwargs)
     return decorated
 
 
 # ──────────────────────────────────────────────────────────────
 # POST /api/monitor/frame
-# Called by the FiveM client via screenshot-basic upload
+# Called by the FiveM server (rps_playermonitor) after it collects a
+# screenshot from a client via screenshot-basic.
 # Headers: X-API-Key, X-Player-Token (server ID), X-Player-Name (optional)
 # Body: multipart/form-data with field "screenshot" (JPEG bytes)
 # ──────────────────────────────────────────────────────────────
@@ -76,7 +68,6 @@ def receive_frame():
     if not server_id:
         return jsonify({'error': 'Missing X-Player-Token'}), 400
 
-    # screenshot-basic posts as multipart with field name "screenshot"
     file = request.files.get('screenshot')
     if not file:
         return jsonify({'error': 'No screenshot field in upload'}), 400
@@ -84,13 +75,13 @@ def receive_frame():
     frame_bytes = file.read()
     if not frame_bytes:
         return jsonify({'error': 'Empty frame'}), 400
+    if len(frame_bytes) > 5 * 1024 * 1024:
+        return jsonify({'error': 'Frame too large'}), 413
 
-    with _frames_lock:
-        _frames[server_id] = {
-            'name': player_name,
-            'frame': frame_bytes,
-            'ts': time.time(),
-        }
+    r = _redis()
+    key = _REDIS_PREFIX + server_id
+    r.hset(key, mapping={'name': player_name, 'ts': time.time(), 'frame': frame_bytes})
+    r.expire(key, FRAME_TTL)
 
     return jsonify({'ok': True}), 200
 
@@ -98,26 +89,26 @@ def receive_frame():
 # ──────────────────────────────────────────────────────────────
 # GET /api/monitor/latest
 # Returns JSON list of active players with their last-seen timestamp.
-# The web UI polls this to know which players have live feeds.
 # ──────────────────────────────────────────────────────────────
 @monitor_bp.route('/api/monitor/latest', methods=['GET'])
 @_require_admin_session
 def latest_players():
+    r = _redis()
     now = time.time()
     result = []
-    with _frames_lock:
-        for server_id, data in list(_frames.items()):
-            age = now - data['ts']
-            if age <= FRAME_TTL:
-                result.append({
-                    'id': server_id,
-                    'name': data['name'],
-                    'age_ms': int(age * 1000),
-                    'ts': data['ts'],
-                })
-            else:
-                # Clean up stale entries
-                del _frames[server_id]
+    for key in r.scan_iter(match=_REDIS_PREFIX + '*', count=100):
+        server_id = key.decode().removeprefix(_REDIS_PREFIX)
+        data = r.hmget(key, 'name', 'ts')
+        name, ts = data
+        if ts is None:
+            continue
+        ts = float(ts)
+        result.append({
+            'id': server_id,
+            'name': (name or b'').decode(errors='replace'),
+            'age_ms': int((now - ts) * 1000),
+            'ts': ts,
+        })
 
     result.sort(key=lambda x: x['name'])
     return jsonify(result)
@@ -126,25 +117,20 @@ def latest_players():
 # ──────────────────────────────────────────────────────────────
 # GET /api/monitor/frame/<server_id>
 # Returns the raw JPEG for a single player.
-# The web UI sets this as the <img src="..."> for each feed cell.
 # ──────────────────────────────────────────────────────────────
 @monitor_bp.route('/api/monitor/frame/<server_id>', methods=['GET'])
 @_require_admin_session
 def get_frame(server_id):
-    with _frames_lock:
-        entry = _frames.get(server_id)
-
-    if not entry:
+    r = _redis()
+    key = _REDIS_PREFIX + server_id
+    data = r.hmget(key, 'frame', 'ts')
+    frame, ts = data
+    if frame is None:
         abort(404)
 
-    age = time.time() - entry['ts']
-    if age > FRAME_TTL:
-        with _frames_lock:
-            _frames.pop(server_id, None)
-        abort(404)
-
+    age = time.time() - float(ts)
     return Response(
-        entry['frame'],
+        frame,
         mimetype='image/jpeg',
         headers={
             'Cache-Control': 'no-store, no-cache, must-revalidate',
