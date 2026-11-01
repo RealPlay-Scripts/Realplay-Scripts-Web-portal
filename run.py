@@ -7,10 +7,15 @@ app = create_app()
 
 
 def _start_discord_bot(flask_app):
-    """Run the Discord leaderboard bot in the background, sharing this
-    process's Flask app/database instead of spinning up a second one.
-    Skips silently if no bot token is configured — the web app still
-    works fine without it."""
+    """Run the Discord bot (leaderboard dashboard + category-scoped admin
+    slash commands) in the background, sharing this process's Flask
+    app/database instead of spinning up a second one. Skips silently if no
+    bot token is configured — the web app still works fine without it.
+
+    NOTE: this is a dev convenience for `python run.py` only. In
+    production (gunicorn, multiple workers) each worker would try to log
+    in with the same token and collide — the live deployment runs the bot
+    as its own separate systemd service instead, not through here."""
     # discord_bot.py loads .env itself and reads BOT_TOKEN / CHANNEL_ID
     # straight from it — not from flask_app.config — so we check the same
     # source here rather than app.config, which may be populated
@@ -21,15 +26,12 @@ def _start_discord_bot(flask_app):
         print('[Bot] DISCORD_BOT_TOKEN not set — skipping the Discord bot. '
               'The web app will still run fine.')
         return
-    if not discord_bot.CHANNEL_ID:
-        print('[Bot] LEADERBOARD_CHANNEL_ID not set — skipping the Discord bot.')
-        return
 
     discord_bot.configure(flask_app)
 
     def _run():
         try:
-            discord_bot.client.run(discord_bot.BOT_TOKEN, log_handler=None)
+            discord_bot.bot.run(discord_bot.BOT_TOKEN, log_handler=None)
         except Exception as exc:
             print(f'[Bot] Discord bot stopped: {exc}')
 

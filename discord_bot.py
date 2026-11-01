@@ -395,18 +395,254 @@ def load_msg_id():
 
 
 # ── Discord bot ────────────────────────────────────────────────────────
+#
+# This is the one bot for the whole site: it posts/updates the live
+# leaderboard dashboard below (same as the old leaderboard-only bot), AND
+# — via app/utils.py's discord_api_request/add_discord_role/_join_guild
+# etc. — its token (DISCORD_BOT_TOKEN) is what the Flask app itself uses
+# for Discord OAuth guild-join and role sync. It also carries a small set
+# of category-scoped admin slash commands (see below) for channel
+# management in exactly one category — never anywhere else, enforced in
+# code regardless of what server permissions the bot has been granted.
+
+import json as _json_dbot
+import logging as _logging_dbot
+from discord import app_commands
+from discord.ext import commands
+
+ALLOWED_CATEGORY_ID = int(os.getenv('ALLOWED_CATEGORY_ID', '1566556666332324052'))
+DISCORD_GUILD_ID_RAW = os.getenv('DISCORD_GUILD_ID', '')
+DISCORD_GUILD_ID = int(DISCORD_GUILD_ID_RAW) if DISCORD_GUILD_ID_RAW.strip().isdigit() else 0
+
+_BACKUP_DIR = os.path.join(BASE_DIR, 'discord_backups')
+os.makedirs(_BACKUP_DIR, exist_ok=True)
+
+_bot_log = _logging_dbot.getLogger('gsrp.discord_bot')
+_bot_log.addHandler(_logging_dbot.FileHandler(os.path.join(BASE_DIR, 'discord_bot_commands.log')))
+_bot_log.setLevel(_logging_dbot.INFO)
 
 intents = discord.Intents.default()
-client  = discord.Client(intents=intents)
+bot     = commands.Bot(command_prefix='!unused-', intents=intents)
+client  = bot  # kept for anything still referencing the old name
 lb_msg  = None
 
 
-@client.event
+# ── Category guard + backup (same logic as rps-category-bot, folded in) ─
+
+class NotInAllowedCategory(Exception):
+    pass
+
+
+def _require_channel_in_category(channel):
+    if channel.category_id != ALLOWED_CATEGORY_ID:
+        raise NotInAllowedCategory(
+            f'#{channel.name} is not inside the allowed category (id {ALLOWED_CATEGORY_ID}) — refusing.'
+        )
+
+
+def _overwrites_to_dict(channel):
+    out = {}
+    for target, overwrite in channel.overwrites.items():
+        allow, deny = overwrite.pair()
+        kind = 'role' if isinstance(target, discord.Role) else 'member'
+        out[f'{kind}:{target.id}:{target.name}'] = {
+            'allow': [p for p, v in allow if v],
+            'deny':  [p for p, v in deny if v],
+        }
+    return out
+
+
+def backup_guild(guild) -> str:
+    """Full snapshot of every role and channel — written before ANY destructive command runs."""
+    snapshot = {
+        'guild_id': guild.id,
+        'guild_name': guild.name,
+        'taken_at': datetime.now(timezone.utc).isoformat(),
+        'roles': [
+            {
+                'id': r.id, 'name': r.name, 'color': str(r.color), 'position': r.position,
+                'hoist': r.hoist, 'mentionable': r.mentionable, 'managed': r.managed,
+                'permissions': r.permissions.value,
+            }
+            for r in guild.roles
+        ],
+        'channels': [
+            {
+                'id': c.id, 'name': c.name, 'type': str(c.type), 'position': c.position,
+                'category_id': c.category_id, 'category_name': c.category.name if c.category else None,
+                'topic': getattr(c, 'topic', None), 'nsfw': getattr(c, 'nsfw', None),
+                'overwrites': _overwrites_to_dict(c),
+            }
+            for c in guild.channels
+        ],
+    }
+    ts = datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')
+    path = os.path.join(_BACKUP_DIR, f'backup_{guild.id}_{ts}.json')
+    with open(path, 'w') as fh:
+        _json_dbot.dump(snapshot, fh, indent=2)
+    _bot_log.info('Backup written: %s (%d roles, %d channels)', path, len(snapshot['roles']), len(snapshot['channels']))
+    return path
+
+
+class ConfirmDelete(discord.ui.View):
+    def __init__(self, invoker_id: int):
+        super().__init__(timeout=30)
+        self.invoker_id = invoker_id
+        self.confirmed = None
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.invoker_id:
+            await interaction.response.send_message('Only the person who ran this command can confirm it.', ephemeral=True)
+            return False
+        return True
+
+    @discord.ui.button(label='Delete channel', style=discord.ButtonStyle.danger)
+    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.confirmed = True
+        self.stop()
+        await interaction.response.defer()
+
+    @discord.ui.button(label='Cancel', style=discord.ButtonStyle.secondary)
+    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.confirmed = False
+        self.stop()
+        await interaction.response.defer()
+
+
+@bot.tree.command(name='category_status', description='List the channels currently in the managed category')
+@app_commands.default_permissions(manage_channels=True)
+async def category_status(interaction: discord.Interaction):
+    category = interaction.guild.get_channel(ALLOWED_CATEGORY_ID)
+    if not category or not isinstance(category, discord.CategoryChannel):
+        await interaction.response.send_message(
+            f'Category `{ALLOWED_CATEGORY_ID}` was not found in this server — nothing for me to manage here.',
+            ephemeral=True,
+        )
+        return
+    lines = [f'**{category.name}** (`{category.id}`) — {len(category.channels)} channel(s):']
+    for ch in category.channels:
+        lines.append(f'  • {getattr(ch, "mention", ch.name)} (`{ch.id}`, {ch.type})')
+    await interaction.response.send_message('\n'.join(lines), ephemeral=True)
+
+
+@bot.tree.command(name='category_backup', description='Take a manual backup of all roles and channels right now')
+@app_commands.default_permissions(manage_channels=True)
+async def category_backup(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    path = backup_guild(interaction.guild)
+    await interaction.followup.send(f'Backup written: `{os.path.basename(path)}`', ephemeral=True)
+
+
+@bot.tree.command(name='category_rename', description='Rename a channel — only works inside the managed category')
+@app_commands.describe(channel='The channel to rename', new_name='The new channel name')
+@app_commands.default_permissions(manage_channels=True)
+async def category_rename(interaction: discord.Interaction, channel: discord.abc.GuildChannel, new_name: str):
+    try:
+        _require_channel_in_category(channel)
+    except NotInAllowedCategory as e:
+        _bot_log.warning('REJECTED rename by %s: %s', interaction.user, e)
+        await interaction.response.send_message(f'🚫 {e}', ephemeral=True)
+        return
+    await interaction.response.defer(ephemeral=True)
+    backup_guild(interaction.guild)
+    old_name = channel.name
+    await channel.edit(name=new_name, reason=f'/category_rename by {interaction.user} ({interaction.user.id})')
+    _bot_log.info('RENAMED #%s -> #%s by %s', old_name, new_name, interaction.user)
+    await interaction.followup.send(f'✅ Renamed **#{old_name}** → **#{new_name}**. Backup taken first.', ephemeral=True)
+
+
+@bot.tree.command(name='category_archive', description='Lock + archive a channel — only works inside the managed category')
+@app_commands.describe(channel='The channel to archive')
+@app_commands.default_permissions(manage_channels=True)
+async def category_archive(interaction: discord.Interaction, channel: discord.abc.GuildChannel):
+    try:
+        _require_channel_in_category(channel)
+    except NotInAllowedCategory as e:
+        _bot_log.warning('REJECTED archive by %s: %s', interaction.user, e)
+        await interaction.response.send_message(f'🚫 {e}', ephemeral=True)
+        return
+    await interaction.response.defer(ephemeral=True)
+    backup_guild(interaction.guild)
+    everyone = interaction.guild.default_role
+    overwrite = channel.overwrites_for(everyone)
+    overwrite.send_messages = False
+    overwrite.connect = False
+    await channel.set_permissions(everyone, overwrite=overwrite, reason=f'/category_archive by {interaction.user} ({interaction.user.id})')
+    new_name = channel.name if channel.name.startswith('archived-') else f'archived-{channel.name}'
+    if new_name != channel.name:
+        await channel.edit(name=new_name, reason=f'/category_archive by {interaction.user} ({interaction.user.id})')
+    _bot_log.info('ARCHIVED #%s by %s', channel.name, interaction.user)
+    await interaction.followup.send(f'✅ Archived **#{new_name}** (locked for @everyone). Backup taken first.', ephemeral=True)
+
+
+@bot.tree.command(name='category_cleanup', description='Bulk-delete recent messages in a channel — only works inside the managed category')
+@app_commands.describe(channel='The channel to clean up', limit='How many recent messages to delete (max 100, default 50)')
+@app_commands.default_permissions(manage_channels=True)
+async def category_cleanup(interaction: discord.Interaction, channel: discord.TextChannel, limit: app_commands.Range[int, 1, 100] = 50):
+    try:
+        _require_channel_in_category(channel)
+    except NotInAllowedCategory as e:
+        _bot_log.warning('REJECTED cleanup by %s: %s', interaction.user, e)
+        await interaction.response.send_message(f'🚫 {e}', ephemeral=True)
+        return
+    await interaction.response.defer(ephemeral=True)
+    backup_guild(interaction.guild)
+    deleted = await channel.purge(limit=limit, reason=f'/category_cleanup by {interaction.user} ({interaction.user.id})')
+    _bot_log.info('CLEANUP #%s: deleted %d message(s) by %s', channel.name, len(deleted), interaction.user)
+    note = '' if len(deleted) == limit else ' (fewer than requested were deleted — Discord only bulk-deletes messages younger than 14 days)'
+    await interaction.followup.send(f'✅ Deleted {len(deleted)} message(s) in **#{channel.name}**{note}. Backup taken first.', ephemeral=True)
+
+
+@bot.tree.command(name='category_delete', description='Permanently delete a channel — only works inside the managed category')
+@app_commands.describe(channel='The channel to delete')
+@app_commands.default_permissions(manage_channels=True)
+async def category_delete(interaction: discord.Interaction, channel: discord.abc.GuildChannel):
+    try:
+        _require_channel_in_category(channel)
+    except NotInAllowedCategory as e:
+        _bot_log.warning('REJECTED delete by %s: %s', interaction.user, e)
+        await interaction.response.send_message(f'🚫 {e}', ephemeral=True)
+        return
+    view = ConfirmDelete(interaction.user.id)
+    await interaction.response.send_message(
+        f'⚠️ Really delete **#{channel.name}** (`{channel.id}`)? A backup will be taken first, but there is no '
+        f'Discord undo — recovering means manually recreating the channel from that backup.',
+        view=view,
+        ephemeral=True,
+    )
+    await view.wait()
+    if not view.confirmed:
+        await interaction.edit_original_response(content='Cancelled — nothing was deleted.', view=None)
+        return
+    backup_guild(interaction.guild)
+    name, cid = channel.name, channel.id
+    await channel.delete(reason=f'/category_delete by {interaction.user} ({interaction.user.id})')
+    _bot_log.info('DELETED #%s (%s) by %s', name, cid, interaction.user)
+    await interaction.edit_original_response(content=f'✅ Deleted **#{name}**. Backup was taken first.', view=None)
+
+
+# ── Leaderboard dashboard (unchanged behaviour, now on `bot` not `client`) ─
+
+@bot.event
 async def on_ready():
     global lb_msg
-    print(f'[GSRP Bot] Logged in as {client.user}')
+    print(f'[GSRP Bot] Logged in as {bot.user}')
 
-    channel = client.get_channel(CHANNEL_ID)
+    try:
+        if DISCORD_GUILD_ID:
+            synced = await bot.tree.sync(guild=discord.Object(id=DISCORD_GUILD_ID))
+        else:
+            synced = await bot.tree.sync()
+        print(f'[GSRP Bot] Synced {len(synced)} slash command(s)')
+    except Exception as e:
+        print(f'[GSRP Bot] Slash command sync failed: {e}')
+
+    if not CHANNEL_ID:
+        print('[GSRP Bot] LEADERBOARD_CHANNEL_ID not set — skipping the leaderboard dashboard '
+              '(slash commands still work).')
+        return
+
+    channel = bot.get_channel(CHANNEL_ID)
     if not channel:
         print(f'[GSRP Bot] ERROR: Channel {CHANNEL_ID} not found. Check LEADERBOARD_CHANNEL_ID in .env')
         return
@@ -436,10 +672,10 @@ async def on_ready():
 
 async def update_loop():
     global lb_msg
-    await client.wait_until_ready()
+    await bot.wait_until_ready()
     print('[GSRP Bot] Update loop started')
 
-    while not client.is_closed():
+    while not bot.is_closed():
         try:
             loop = asyncio.get_event_loop()
             data = await loop.run_in_executor(None, fetch_data)
@@ -450,7 +686,7 @@ async def update_loop():
                 print(f'[GSRP Bot] Updated — {data["online_count"]} online')
 
         except discord.errors.NotFound:
-            channel = client.get_channel(CHANNEL_ID)
+            channel = bot.get_channel(CHANNEL_ID)
             if channel:
                 data = await asyncio.get_event_loop().run_in_executor(None, fetch_data)
                 if data:
@@ -475,9 +711,7 @@ if __name__ == '__main__':
     if not BOT_TOKEN:
         print('[ERROR] DISCORD_BOT_TOKEN not set in .env')
         sys.exit(1)
-    if not CHANNEL_ID:
-        print('[ERROR] LEADERBOARD_CHANNEL_ID not set in .env')
-        sys.exit(1)
 
-    print(f'[GSRP Bot] Starting — channel {CHANNEL_ID} — updating every {UPDATE_INTERVAL}s')
-    client.run(BOT_TOKEN)
+    print(f'[GSRP Bot] Starting — leaderboard channel {CHANNEL_ID or "(none configured)"} '
+          f'— managed category {ALLOWED_CATEGORY_ID} — updating every {UPDATE_INTERVAL}s')
+    bot.run(BOT_TOKEN, log_handler=None)
