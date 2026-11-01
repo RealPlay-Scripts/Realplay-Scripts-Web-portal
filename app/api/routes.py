@@ -75,6 +75,8 @@ def server_heartbeat():
             hb.bank = p.get('bank', 0)
             hb.ping = p.get('ping', 0)
 
+        _record_wealth_snapshot(discord_id, p.get('name', 'Unknown'), p.get('cash', 0), p.get('bank', 0), now.date())
+
     # Mark players who left (not in this heartbeat) as offline
     cutoff = now - timedelta(seconds=90)
     stale = PlayerHeartbeat.query.filter(
@@ -502,6 +504,24 @@ def _update_playtime_aggregate(discord_id, date, seconds):
         name = hb.player_name if hb else 'Unknown'
         agg = PlaytimeAggregate(discord_id=discord_id, player_name=name, date=date, seconds=seconds)
         db.session.add(agg)
+
+
+def _record_wealth_snapshot(discord_id, player_name, cash, bank, day):
+    """
+    One row per player per day, set to whatever their cash/bank was the
+    first time they were seen that day. Feeds the economy-flag detector's
+    long-range baseline — see app/analytics/routes.py.
+
+    NOTE: does not flush/commit — this runs inside server_heartbeat's
+    per-batch loop, which commits once at the end for every player in the
+    tick. Flushing+rolling back here on a unique-constraint race would
+    discard every other player's pending changes in the same batch.
+    """
+    from app.models import PlayerWealthSnapshot
+    exists = PlayerWealthSnapshot.query.filter_by(discord_id=discord_id, date=day).first()
+    if exists:
+        return
+    db.session.add(PlayerWealthSnapshot(discord_id=discord_id, player_name=player_name, date=day, cash=cash, bank=bank))
 
 # ── Whitelist control ────────────────────────────────────────────────────
 from app.api.whitelist_routes import *   # noqa: F401,F403

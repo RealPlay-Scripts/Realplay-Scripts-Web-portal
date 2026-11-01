@@ -550,6 +550,29 @@ class PlaytimeAggregate(db.Model):
     __table_args__ = (db.UniqueConstraint('discord_id', 'date'),)
 
 
+class PlayerWealthSnapshot(db.Model):
+    """
+    One row per player per calendar day: their cash+bank the first time they
+    were seen online that day. Gives the economy-flag detector a stable,
+    long-range view of a player's wealth over time instead of comparing
+    against a single (often missing or noisy) prior session.
+    """
+    __tablename__ = 'player_wealth_snapshots'
+    id = db.Column(db.Integer, primary_key=True)
+    discord_id = db.Column(db.String(32), nullable=False, index=True)
+    player_name = db.Column(db.String(128))
+    date = db.Column(db.Date, nullable=False, index=True)
+    cash = db.Column(db.Integer, default=0)
+    bank = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (db.UniqueConstraint('discord_id', 'date'),)
+
+    @property
+    def total(self):
+        return (self.cash or 0) + (self.bank or 0)
+
+
 # ─── Site Settings ─────────────────────────────────────────────────────────────
 
 class SiteSettings(db.Model):

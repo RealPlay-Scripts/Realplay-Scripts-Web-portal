@@ -826,10 +826,125 @@ def data_economy():
 
 
 # ─── Economy Flag Detection ────────────────────────────────────────────────────
-
-FLAG_THRESHOLD = 50_000   # $ gain in 24h that triggers a flag
-ALERT_STEP     = 50_000   # additional gain required after review to re-alert
+#
+# Detection design (replaces the old flat "$50k gain in any 24h window"
+# threshold, which flagged completely ordinary gameplay — a new character's
+# starting cash, one good heist, selling a car — because it had no concept
+# of a stable baseline and no per-player context):
+#
+#   1. Grace period — a player needs GRACE_PERIOD_HOURS of tracked history
+#      before they're eligible to be flagged at all. Without this, a brand
+#      new character's very first heartbeat has no prior snapshot, so their
+#      starting cash alone looks like an "infinite gain" and gets flagged
+#      instantly — almost certainly the single biggest source of false
+#      positives in the old system.
+#   2. Long-window absolute gain — using PlayerWealthSnapshot (one row per
+#      player per calendar day, recorded from the heartbeat), flag if total
+#      wealth has grown by more than LONG_WINDOW_ABS_THRESHOLD within
+#      LONG_WINDOW_DAYS. This is the "if a player's wealth has gone up $2M
+#      over a month, flag it" check — slow-burn laundering/duping included.
+#   3. Personal rate anomaly — compare a player's most recent 24h gain to
+#      their OWN historical average $/day earn rate, derived from the same
+#      snapshots. A sudden gain many times above their personal normal pace
+#      is the actual signature of money-glitching, and it self-calibrates
+#      per player without needing job/income data the FiveM side doesn't
+#      currently send: a high-paying job just means a higher personal
+#      baseline, so the same dollar amount that's unremarkable for one
+#      player can still flag for another whose history says it shouldn't
+#      happen. (Explicit per-job income modeling would need new telemetry
+#      from the FiveM resources — this adaptive baseline gets most of the
+#      same signal without that dependency, and keeps working regardless of
+#      which framework/jobs the server runs.)
+#
+GRACE_PERIOD_HOURS        = 24          # min. tracked history before a player is flaggable at all
+LONG_WINDOW_DAYS          = 30
+LONG_WINDOW_ABS_THRESHOLD = 2_000_000   # $ gain over LONG_WINDOW_DAYS that always flags
+RATE_ANOMALY_MULTIPLIER   = 8           # 24h gain must be this many × the player's own historical daily rate...
+RATE_ANOMALY_MIN_GAIN     = 150_000     # ...and still be at least this much in absolute dollars
+ALERT_STEP                = 500_000     # extra gain required after a flag is reviewed before re-alerting
 _monitor_started = False  # guard so we only start one thread
+
+
+def _wealth_baseline(discord_id, days):
+    """
+    Oldest PlayerWealthSnapshot within the last `days` days for this player,
+    falling back to the oldest snapshot on record if they have less history
+    than that. Returns (snapshot_or_None, days_tracked).
+    """
+    from app.models import PlayerWealthSnapshot
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).date()
+    baseline = PlayerWealthSnapshot.query.filter(
+        PlayerWealthSnapshot.discord_id == discord_id,
+        PlayerWealthSnapshot.date >= cutoff,
+    ).order_by(PlayerWealthSnapshot.date.asc()).first()
+    if not baseline:
+        baseline = PlayerWealthSnapshot.query.filter_by(discord_id=discord_id) \
+            .order_by(PlayerWealthSnapshot.date.asc()).first()
+    if not baseline:
+        return None, 0
+    days_tracked = max(1, (datetime.now(timezone.utc).date() - baseline.date).days)
+    return baseline, days_tracked
+
+
+def _evaluate_player_economy(discord_id, cash_now, bank_now):
+    """
+    Returns a dict describing a flaggable anomaly, or None if this player's
+    current wealth doesn't look suspicious under the rules above.
+    """
+    from app.models import PlayerWealthSnapshot
+
+    total_now = (cash_now or 0) + (bank_now or 0)
+
+    earliest = PlayerWealthSnapshot.query.filter_by(discord_id=discord_id) \
+        .order_by(PlayerWealthSnapshot.date.asc()).first()
+    if not earliest:
+        return None  # no tracked history at all yet
+
+    earliest_dt = datetime(earliest.date.year, earliest.date.month, earliest.date.day, tzinfo=timezone.utc)
+    if datetime.now(timezone.utc) - earliest_dt < timedelta(hours=GRACE_PERIOD_HOURS):
+        return None  # inside the new-player grace period
+
+    baseline, days_tracked = _wealth_baseline(discord_id, LONG_WINDOW_DAYS)
+    if not baseline:
+        return None
+
+    long_gain = total_now - baseline.total
+    personal_daily_rate = max(long_gain, 0) / days_tracked
+
+    today = datetime.now(timezone.utc).date()
+    recent = PlayerWealthSnapshot.query.filter(
+        PlayerWealthSnapshot.discord_id == discord_id,
+        PlayerWealthSnapshot.date < today,
+    ).order_by(PlayerWealthSnapshot.date.desc()).first()
+    recent_before = recent.total if recent else baseline.total
+    recent_before_cash = recent.cash if recent else baseline.cash
+    recent_before_bank = recent.bank if recent else baseline.bank
+    recent_gain = total_now - recent_before
+
+    reasons = []
+    if long_gain >= LONG_WINDOW_ABS_THRESHOLD:
+        reasons.append(
+            f"Gained ${long_gain:,} over the last {days_tracked} day(s) "
+            f"(≥ ${LONG_WINDOW_ABS_THRESHOLD:,} long-window threshold)"
+        )
+    if recent_gain >= RATE_ANOMALY_MIN_GAIN and recent_gain >= personal_daily_rate * RATE_ANOMALY_MULTIPLIER:
+        reasons.append(
+            f"Gained ${recent_gain:,} in the last 24h — {RATE_ANOMALY_MULTIPLIER}×+ their own "
+            f"historical pace of ~${personal_daily_rate:,.0f}/day over {days_tracked}d"
+        )
+
+    if not reasons:
+        return None
+
+    return {
+        'gain':          max(long_gain, recent_gain),
+        'long_gain':     long_gain,
+        'recent_gain':   recent_gain,
+        'days_tracked':  days_tracked,
+        'cash_before':   recent_before_cash or 0,
+        'bank_before':   recent_before_bank or 0,
+        'reasons':       reasons,
+    }
 
 
 # ── Discord webhook helpers ───────────────────────────────────────────────────
@@ -844,7 +959,7 @@ def _webhook_url():
 
 def _build_embed(player_name, discord_id, gain, cash_before, bank_before,
                  cash_after, bank_after, detected_at=None, session_start=None,
-                 prev_gain=None, update_count=0, change_log=None):
+                 prev_gain=None, update_count=0, change_log=None, reasons=None):
     is_update    = prev_gain is not None
     now          = datetime.now(timezone.utc)
     total_before = cash_before + bank_before
@@ -874,7 +989,7 @@ def _build_embed(player_name, discord_id, gain, cash_before, bank_before,
         diff_line = f"\n📉 Down **${gain_diff:,}** since last check."
 
     description = (
-        f"**{player_name}** has gained **${gain:,}** in the last 24 hours."
+        f"**{player_name}**'s wealth looks anomalous."
         + diff_line
     )
 
@@ -884,18 +999,27 @@ def _build_embed(player_name, discord_id, gain, cash_before, bank_before,
         {"name": "💹 Rate",           "value": rate_str,                                                                         "inline": True},
         {"name": "📉 Wealth Before",  "value": f"💵 Cash: `${cash_before:,}`\n🏦 Bank: `${bank_before:,}`\n📊 Total: `${total_before:,}`", "inline": True},
         {"name": "📈 Wealth Now",     "value": f"💵 Cash: `${cash_after:,}`\n🏦 Bank: `${bank_after:,}`\n📊 Total: `${total_after:,}`",    "inline": True},
-        {"name": "🚨 Net Gain",       "value": f"**`+${gain:,}`**\nThreshold: `>${FLAG_THRESHOLD:,}`",                          "inline": True},
+        {"name": "🚨 Net Gain",       "value": f"**`+${gain:,}`**",                                                              "inline": True},
         {"name": "🕐 First Detected", "value": detected_str,                                                                     "inline": True},
         {"name": "🎮 Session Start",  "value": session_str,                                                                      "inline": True},
         {"name": "🔁 Checks",         "value": f"{update_count + 1}×",                                                           "inline": True},
     ]
 
+    if reasons:
+        fields.append({"name": "🧠 Why this flagged", "value": "\n".join(f"• {r}" for r in reasons), "inline": False})
+
     if change_log:
         fields.append({"name": "📋 Change Log", "value": "\n".join(change_log[-5:]), "inline": False})
 
+    try:
+        from flask import current_app
+        site_url = current_app.config.get('SITE_URL', '').rstrip('/')
+    except RuntimeError:
+        site_url = ''
+    review_url = f"{site_url}/analytics/economy/flags" if site_url else "/analytics/economy/flags"
     fields.append({
         "name":  "🔎 Review",
-        "value": "[**Open Economy Flags →**](https://web.cfrp.co.za/analytics/economy/flags/page)",
+        "value": f"[**Open Economy Flags →**]({review_url})",
         "inline": False,
     })
 
@@ -964,18 +1088,14 @@ def _check_live_players(app):
                 cash_now    = hb.cash or 0
                 bank_now    = hb.bank or 0
 
-                session_before = PlayerSession.query.filter(
-                    PlayerSession.discord_id == discord_id,
-                    PlayerSession.leave_time < window_ago,
-                    PlayerSession.cash_at_leave.isnot(None),
-                ).order_by(PlayerSession.leave_time.desc()).first()
-
-                cash_before   = session_before.cash_at_leave or 0 if session_before else 0
-                bank_before   = session_before.bank_at_leave or 0 if session_before else 0
-                gain          = (cash_now + bank_now) - (cash_before + bank_before)
-
-                if gain < FLAG_THRESHOLD:
+                evaluation = _evaluate_player_economy(discord_id, cash_now, bank_now)
+                if not evaluation:
                     continue
+
+                gain         = evaluation['gain']
+                cash_before  = evaluation['cash_before']
+                bank_before  = evaluation['bank_before']
+                reasons      = evaluation['reasons']
 
                 # Session start time
                 session_start_time = None
@@ -1041,6 +1161,7 @@ def _check_live_players(app):
                         prev_gain=prev_gain,
                         update_count=len(change_log),
                         change_log=change_log,
+                        reasons=reasons,
                     )
                     if existing.discord_message_id:
                         _patch_webhook(existing.discord_message_id, embed)
@@ -1057,6 +1178,7 @@ def _check_live_players(app):
                         prev_gain=None,
                         update_count=0,
                         change_log=change_log,
+                        reasons=reasons,
                     )
                     _dedup = f"{discord_id}:{gain}:{now.strftime('%Y%m%d%H%M')}"
                     # Skip silently if this exact dedup key already exists (race guard)
@@ -1153,15 +1275,6 @@ def _run_economy_flag_check():
         if existing:
             continue
 
-        # Baseline
-        session_before = PlayerSession.query.filter(
-            PlayerSession.discord_id == discord_id,
-            PlayerSession.leave_time < window_ago,
-            PlayerSession.cash_at_leave.isnot(None),
-        ).order_by(PlayerSession.leave_time.desc()).first()
-        cash_before  = session_before.cash_at_leave or 0 if session_before else 0
-        bank_before  = session_before.bank_at_leave or 0 if session_before else 0
-
         # Current wealth
         if discord_id in live_ids:
             hb = PlayerHeartbeat.query.filter_by(discord_id=discord_id).first()
@@ -1180,9 +1293,14 @@ def _run_economy_flag_check():
             bank_now = latest.bank_at_leave  or 0
             pname    = latest.player_name or 'Unknown'
 
-        gain = (cash_now + bank_now) - (cash_before + bank_before)
-        if gain < FLAG_THRESHOLD:
+        evaluation = _evaluate_player_economy(discord_id, cash_now, bank_now)
+        if not evaluation:
             continue
+
+        gain        = evaluation['gain']
+        cash_before = evaluation['cash_before']
+        bank_before = evaluation['bank_before']
+        reasons     = evaluation['reasons']
 
         # Use MAX reviewed gain so multiple reviewed flags don't confuse
         # the threshold (same fix as the live monitor).
@@ -1220,7 +1338,7 @@ def _run_economy_flag_check():
         except Exception:
             db.session.rollback()
             continue
-        embed  = _build_embed(pname, discord_id, gain, cash_before, bank_before, cash_now, bank_now)
+        embed  = _build_embed(pname, discord_id, gain, cash_before, bank_before, cash_now, bank_now, reasons=reasons)
         msg_id = _post_webhook(embed)
         if msg_id:
             flag.discord_message_id = msg_id
@@ -1985,13 +2103,21 @@ KEY MODELS:
 - AuditLog: .log(action, user_id, resource_type, resource_id, details, ip)
 
 ECONOMY FLAG LOGIC RULES (hard-won, do not regress):
-- FLAG_THRESHOLD = 50_000  (initial alert threshold)
-- ALERT_STEP     = 50_000  (gain above MAX reviewed amount before re-alerting)
+- Detection is in _evaluate_player_economy(), NOT a flat threshold anymore. It
+  needs GRACE_PERIOD_HOURS of PlayerWealthSnapshot history before a player is
+  flaggable at all (fixes new characters' starting cash looking like infinite
+  gain), then flags on EITHER long_gain >= LONG_WINDOW_ABS_THRESHOLD over
+  LONG_WINDOW_DAYS, OR recent_gain >= RATE_ANOMALY_MULTIPLIER × the player's
+  own historical $/day rate (and >= RATE_ANOMALY_MIN_GAIN in absolute terms).
+- ALERT_STEP = 500_000  (gain above MAX reviewed amount before re-alerting)
 - Silencing rule: use MAX(amount_gain) across ALL reviewed flags in 24h window,
   NOT .order_by(detected_at.desc()).first() — that was the original bug.
 - When a flag is reviewed, no new flag or webhook update until gain > max_reviewed + ALERT_STEP
 - Live monitor (_check_live_players): patches existing unreviewed flag's Discord message
 - Manual scan (_run_economy_flag_check): skips players with existing unreviewed flag
+- PlayerWealthSnapshot rows are written once/day/player from server_heartbeat
+  (app/api/routes.py, _record_wealth_snapshot) — don't flush/rollback that
+  function mid-batch, it runs inside a shared per-tick transaction.
 
 COMMON BUG PATTERNS TO RECOGNISE:
 1. Using .first() when MAX() is needed for aggregated comparisons
