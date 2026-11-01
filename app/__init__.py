@@ -79,6 +79,7 @@ def create_app(config_class=None):
                 'site_logo': SiteSettings.get('site_logo', ''),
                 'primary_color': SiteSettings.get('primary_color', '#8b5cf6'),
                 'discord_invite': SiteSettings.get('discord_invite', ''),
+                'fivem_server_ip': SiteSettings.get('fivem_server_ip', ''),
             }
         except Exception:
             settings = {
@@ -87,6 +88,7 @@ def create_app(config_class=None):
                 'site_logo': '',
                 'primary_color': '#8b5cf6',
                 'discord_invite': '',
+                'fivem_server_ip': '',
             }
         unread_count = 0
         if current_user.is_authenticated:

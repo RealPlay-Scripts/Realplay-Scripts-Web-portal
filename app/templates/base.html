@@ -577,6 +577,11 @@
 <!-- ─── Mobile Nav Menu ──────────────────────────────────────────────────── -->
 <div id="mobile-nav">
   <div class="mobile-nav-section">Navigation</div>
+  {% if site.fivem_server_ip %}
+  <a href="fivem://connect/{{ site.fivem_server_ip }}" class="mobile-nav-link" style="color:var(--accent);">
+    <i class="ti ti-device-gamepad-2"></i> Connect to Server
+  </a>
+  {% endif %}
   <a href="{{ url_for('main.index') }}" class="mobile-nav-link {% if request.endpoint == 'main.index' %}active{% endif %}">
     <i class="ti ti-home"></i> Home
   </a>
@@ -671,6 +676,12 @@
     </div>
 
     <div style="display:flex;align-items:center;gap:0.75rem;flex-shrink:0;">
+
+      {% if site.fivem_server_ip %}
+        <a href="fivem://connect/{{ site.fivem_server_ip }}" class="btn btn-ghost btn-sm" title="Connect via FiveM ({{ site.fivem_server_ip }})">
+          <i class="ti ti-device-gamepad-2"></i> Connect
+        </a>
+      {% endif %}
 
       {% if current_user.is_authenticated %}
         <div style="position:relative;">
