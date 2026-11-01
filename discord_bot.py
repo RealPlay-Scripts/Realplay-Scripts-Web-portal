@@ -533,6 +533,60 @@ async def category_backup(interaction: discord.Interaction):
     await interaction.followup.send(f'Backup written: `{os.path.basename(path)}`', ephemeral=True)
 
 
+@bot.tree.command(name='category_create', description='Create a new channel inside the managed category')
+@app_commands.describe(name='Channel name', channel_type='What kind of channel to create (default: text)')
+@app_commands.choices(channel_type=[
+    app_commands.Choice(name='Text', value='text'),
+    app_commands.Choice(name='Voice', value='voice'),
+    app_commands.Choice(name='Forum', value='forum'),
+    app_commands.Choice(name='Stage', value='stage'),
+])
+@app_commands.default_permissions(manage_channels=True)
+async def category_create(interaction: discord.Interaction, name: str, channel_type: app_commands.Choice[str] = None):
+    category = interaction.guild.get_channel(ALLOWED_CATEGORY_ID)
+    if not category or not isinstance(category, discord.CategoryChannel):
+        await interaction.response.send_message(
+            f'Category `{ALLOWED_CATEGORY_ID}` was not found in this server — nothing for me to create inside.',
+            ephemeral=True,
+        )
+        return
+
+    await interaction.response.defer(ephemeral=True)
+    backup_guild(interaction.guild)  # consistent with every other mutating command
+
+    ctype = channel_type.value if channel_type else 'text'
+    reason = f'/category_create by {interaction.user} ({interaction.user.id})'
+    try:
+        if ctype == 'voice':
+            new_channel = await category.create_voice_channel(name, reason=reason)
+        elif ctype == 'forum':
+            new_channel = await category.create_forum(name, reason=reason)
+        elif ctype == 'stage':
+            new_channel = await category.create_stage_channel(name, reason=reason)
+        else:
+            new_channel = await category.create_text_channel(name, reason=reason)
+    except discord.HTTPException as e:
+        _bot_log.warning('CREATE failed for %r in category %s by %s: %s', name, ALLOWED_CATEGORY_ID, interaction.user, e)
+        await interaction.followup.send(f'❌ Discord rejected that: {e}', ephemeral=True)
+        return
+
+    # Belt-and-suspenders: confirm Discord actually placed it in the right
+    # category before telling the invoker it worked (categories can silently
+    # fail to attach if the category is full — 50 channels max).
+    if new_channel.category_id != ALLOWED_CATEGORY_ID:
+        _bot_log.error('CREATED #%s but it landed outside the category (category_id=%s) — deleting it.', new_channel.name, new_channel.category_id)
+        await new_channel.delete(reason='category_create safety check failed — channel did not land in the managed category')
+        await interaction.followup.send(
+            '❌ Discord did not place the new channel in the managed category (it may be full — 50 channel max per category). '
+            'Deleted it rather than leave an unmanaged channel behind.',
+            ephemeral=True,
+        )
+        return
+
+    _bot_log.info('CREATED #%s (%s, type=%s) in category %s by %s', new_channel.name, new_channel.id, ctype, ALLOWED_CATEGORY_ID, interaction.user)
+    await interaction.followup.send(f'✅ Created **#{new_channel.name}** (`{ctype}`) in the managed category. Backup taken first.', ephemeral=True)
+
+
 @bot.tree.command(name='category_rename', description='Rename a channel — only works inside the managed category')
 @app_commands.describe(channel='The channel to rename', new_name='The new channel name')
 @app_commands.default_permissions(manage_channels=True)
