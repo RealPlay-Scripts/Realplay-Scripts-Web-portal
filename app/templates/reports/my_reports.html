@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}My Reports{% endblock %}
+{% block content %}
+<div style="max-width:900px;margin:0 auto;padding:2rem 1.5rem;">
+
+  <div class="page-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
+    <div>
+      <h1 class="page-title" style="margin:0;">My Reports</h1>
+      <p style="color:var(--text-muted);font-size:0.875rem;margin:0.25rem 0 0;">Track your submitted player reports and bug reports.</p>
+    </div>
+    <a href="{{ url_for('reports.new_report') }}" class="btn btn-primary">
+      <i class="ti ti-plus"></i> Submit Report
+    </a>
+  </div>
+
+  <!-- Filters -->
+  <div class="card" style="margin-bottom:1.25rem;padding:0.875rem 1rem;">
+    <form method="GET" style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap;">
+      <select name="status" class="form-input" style="width:auto;padding:0.375rem 0.75rem;font-size:0.8rem;" onchange="this.form.submit()">
+        <option value="">All Statuses</option>
+        {% for s in statuses %}
+          <option value="{{ s }}" {% if status_filter==s %}selected{% endif %}>{{ status_labels[s] }}</option>
+        {% endfor %}
+      </select>
+      <select name="type" class="form-input" style="width:auto;padding:0.375rem 0.75rem;font-size:0.8rem;" onchange="this.form.submit()">
+        <option value="">All Types</option>
+        <option value="player" {% if type_filter=='player' %}selected{% endif %}>Player Reports</option>
+        <option value="bug"    {% if type_filter=='bug'    %}selected{% endif %}>Bug Reports</option>
+      </select>
+    </form>
+  </div>
+
+  {% if reports %}
+    <div style="display:flex;flex-direction:column;gap:0.75rem;">
+      {% for report in reports %}
+      {% set unread = report.unread_staff_messages %}
+      <a href="{{ url_for('reports.view_report', report_id=report.id) }}"
+         style="text-decoration:none;display:block;">
+        <div class="card" style="padding:1rem 1.25rem;transition:border-color 0.15s;border-color:{% if unread > 0 %}var(--accent){% else %}var(--border){% endif %};"
+             onmouseover="this.style.borderColor='var(--accent)'"
+             onmouseout="this.style.borderColor='{% if unread > 0 %}var(--accent){% else %}var(--border){% endif %}'">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
+            <div style="min-width:0;flex:1;">
+              <div style="display:flex;align-items:center;gap:0.625rem;flex-wrap:wrap;margin-bottom:0.375rem;">
+                {% if report.report_type == 'player' %}
+                  <span style="background:rgba(239,68,68,0.12);color:#f87171;border:1px solid rgba(239,68,68,0.25);border-radius:5px;padding:0.1rem 0.5rem;font-size:0.7rem;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;">
+                    <i class="ti ti-user-x"></i> Player
+                  </span>
+                {% else %}
+                  <span style="background:rgba(99,102,241,0.12);color:#a5b4fc;border:1px solid rgba(99,102,241,0.25);border-radius:5px;padding:0.1rem 0.5rem;font-size:0.7rem;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;">
+                    <i class="ti ti-bug"></i> Bug
+                  </span>
+                {% endif %}
+                <span style="font-weight:600;color:var(--text);font-size:0.95rem;">{{ report.title }}</span>
+                {% if unread > 0 %}
+                  <span style="background:var(--accent);color:#fff;border-radius:10px;padding:0.1rem 0.5rem;font-size:0.65rem;font-weight:700;">{{ unread }} new</span>
+                {% endif %}
+              </div>
+              <p style="color:var(--text-muted);font-size:0.8rem;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                {{ report.description[:120] }}{% if report.description|length > 120 %}…{% endif %}
+              </p>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:0.375rem;white-space:nowrap;">
+              <span style="background:{{ status_colors[report.status] }}22;color:{{ status_colors[report.status] }};border:1px solid {{ status_colors[report.status] }}44;border-radius:20px;padding:0.2rem 0.75rem;font-size:0.75rem;font-weight:600;">
+                <i class="ti ti-{{ report.status_icon }}"></i> {{ report.status_label }}
+              </span>
+              <span style="font-size:0.72rem;color:var(--text-subtle);">#{{ report.id }} &bull; {{ report.created_at.strftime('%d %b %Y') }}</span>
+            </div>
+          </div>
+
+          <!-- Progress bar -->
+          <div style="margin-top:0.875rem;">
+            {% set steps = ['pending','seen','in_progress','waiting','resolved'] %}
+            {% set step_labels = status_labels %}
+            {% set step_colors = status_colors %}
+            {% set cur_idx = steps.index(report.status) if report.status in steps else 0 %}
+            <div style="display:flex;gap:0;height:4px;border-radius:4px;overflow:hidden;background:var(--surface-3);">
+              {% for s in steps %}
+              {% set idx = loop.index0 %}
+              <div style="flex:1;height:4px;background:{% if idx <= cur_idx %}{{ step_colors[s] }}{% else %}var(--surface-3){% endif %};{% if not loop.last %}margin-right:2px;{% endif %}"></div>
+              {% endfor %}
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-top:0.25rem;">
+              {% for s in steps %}
+              <span style="font-size:0.6rem;color:{% if s == report.status %}{{ status_colors[s] }}{% else %}var(--text-subtle){% endif %};font-weight:{% if s == report.status %}600{% else %}400{% endif %};">
+                {{ step_labels[s] }}
+              </span>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+
+    <!-- Pagination -->
+    {% if pagination.pages > 1 %}
+    <div style="display:flex;justify-content:center;gap:0.5rem;margin-top:1.5rem;">
+      {% if pagination.has_prev %}
+        <a href="?page={{ pagination.prev_num }}&status={{ status_filter }}&type={{ type_filter }}" class="btn btn-ghost btn-sm"><i class="ti ti-chevron-left"></i></a>
+      {% endif %}
+      <span style="display:flex;align-items:center;font-size:0.8rem;color:var(--text-muted);">Page {{ pagination.page }} of {{ pagination.pages }}</span>
+      {% if pagination.has_next %}
+        <a href="?page={{ pagination.next_num }}&status={{ status_filter }}&type={{ type_filter }}" class="btn btn-ghost btn-sm"><i class="ti ti-chevron-right"></i></a>
+      {% endif %}
+    </div>
+    {% endif %}
+
+  {% else %}
+    <div class="card" style="text-align:center;padding:3rem 2rem;">
+      <div style="font-size:3rem;margin-bottom:0.75rem;">📋</div>
+      <h3 style="margin:0 0 0.5rem;">No reports yet</h3>
+      <p style="color:var(--text-muted);margin:0 0 1.25rem;">Submit a player report or bug report and track it here.</p>
+      <a href="{{ url_for('reports.new_report') }}" class="btn btn-primary">Submit your first report</a>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

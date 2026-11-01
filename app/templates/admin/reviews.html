@@ -1,0 +1,95 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Review Queue{% endblock %}
+{% block admin_content %}
+<div class="page-header">
+  <h1 class="page-title">Review Queue</h1>
+</div>
+
+<!-- Status tabs -->
+<div class="tab-bar" style="margin-bottom:1rem;">
+  {% for status, label in [('pending','Pending'),('under_review','Under Review'),('approved','Approved'),('denied','Denied'),('on_hold','On Hold'),('all','All')] %}
+  <a href="?status={{ status }}{% if current_type %}&type_id={{ current_type }}{% endif %}" class="tab-btn {% if current_status==status %}active{% endif %}">{{ label }}</a>
+  {% endfor %}
+</div>
+
+<!-- Filters -->
+<div class="card" style="padding:0.875rem 1.25rem;margin-bottom:1rem;">
+  <form method="GET" style="display:flex;gap:0.75rem;align-items:flex-end;flex-wrap:wrap;">
+    <input type="hidden" name="status" value="{{ current_status }}" />
+    <div style="flex:1;min-width:200px;">
+      <label class="form-label">Search User</label>
+      <input type="text" name="q" value="{{ search }}" class="form-input" placeholder="Username or Discord…" />
+    </div>
+    <div style="min-width:200px;">
+      <label class="form-label">Application Type</label>
+      <select name="type_id" class="form-input">
+        <option value="">All Types</option>
+        {% for at in app_types %}<option value="{{ at.id }}" {% if current_type==at.id %}selected{% endif %}>{{ at.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary btn-sm">Filter</button>
+    <a href="?status={{ current_status }}" class="btn btn-ghost btn-sm">Clear</a>
+  </form>
+</div>
+
+<div class="card" style="padding:0;overflow:hidden;">
+  <div class="scroll-x">
+    <table class="data-table">
+      <thead>
+        <tr><th>ID</th><th>Applicant</th><th>Type</th><th>Status</th><th>Submitted</th><th>Reviewer</th><th>Actions</th></tr>
+      </thead>
+      <tbody>
+        {% for app in applications %}
+        <tr>
+          <td style="font-family:'JetBrains Mono',monospace;font-size:0.8rem;color:var(--text-subtle);">#{{ app.id }}</td>
+          <td>
+            <div style="display:flex;align-items:center;gap:0.5rem;">
+              {% if app.applicant.discord_avatar_url %}
+                <img src="{{ app.applicant.discord_avatar_url }}" class="avatar" style="width:26px;height:26px;" />
+              {% else %}
+                <div class="avatar" style="width:26px;height:26px;background:var(--accent-dim);font-size:0.65rem;">{{ app.applicant.username[0].upper() }}</div>
+              {% endif %}
+              <div>
+                <div style="font-weight:600;font-size:0.85rem;">{{ app.applicant.username }}</div>
+                {% if app.applicant.discord_username %}<div style="font-size:0.7rem;color:var(--text-subtle);">{{ app.applicant.discord_username }}</div>{% endif %}
+              </div>
+            </div>
+          </td>
+          <td>
+            <div style="display:flex;align-items:center;gap:0.375rem;">
+              <div style="width:8px;height:8px;border-radius:50%;background:{{ app.application_type.color }};flex-shrink:0;"></div>
+              <span style="font-size:0.85rem;">{{ app.application_type.name }}</span>
+            </div>
+          </td>
+          <td><span class="badge badge-{{ app.status_badge_class }}">{{ app.status.replace('_',' ').title() }}</span></td>
+          <td style="font-size:0.8rem;color:var(--text-muted);white-space:nowrap;">{{ app.submitted_at.strftime('%d %b %Y') }}</td>
+          <td style="font-size:0.8rem;color:var(--text-muted);">{{ app.reviewer.username if app.reviewer else '—' }}</td>
+          <td>
+            <a href="{{ url_for('admin.review_application', app_id=app.id) }}" class="btn btn-primary btn-sm">Review</a>
+            <form method="POST" action="{{ url_for('admin.review_application', app_id=app.id) }}" style="display:inline;"
+                  onsubmit="return confirm('Delete application #{{ app.id }} from {{ app.applicant.username }}?')">
+              <input type="hidden" name="action" value="delete"/>
+              <button type="submit" class="btn btn-ghost btn-sm" title="Delete" style="color:var(--red);"><i class="ti ti-trash"></i> Delete</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" style="text-align:center;padding:3rem;color:var(--text-subtle);">
+          No {{ current_status.replace('_',' ') }} applications found
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if pagination.pages > 1 %}
+  <div style="padding:0.875rem 1.25rem;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+    <span style="font-size:0.8rem;color:var(--text-muted);">{{ pagination.total }} total · Page {{ pagination.page }} of {{ pagination.pages }}</span>
+    <div style="display:flex;gap:0.5rem;">
+      {% if pagination.has_prev %}<a href="?page={{ pagination.prev_num }}&status={{ current_status }}&q={{ search }}" class="btn btn-ghost btn-sm">← Prev</a>{% endif %}
+      {% if pagination.has_next %}<a href="?page={{ pagination.next_num }}&status={{ current_status }}&q={{ search }}" class="btn btn-ghost btn-sm">Next →</a>{% endif %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

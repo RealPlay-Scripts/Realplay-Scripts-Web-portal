@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}Apply — {{ app_type.name }}{% endblock %}
+{% block content %}
+<div style="max-width:720px;margin:0 auto;padding:2rem 1.5rem;">
+  <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1.5rem;">
+    <a href="{{ url_for('applications.list_types') }}" style="color:var(--text-muted);text-decoration:none;"><i class="ti ti-arrow-left"></i></a>
+    <div style="width:36px;height:36px;border-radius:10px;background:{{ app_type.color }}22;display:flex;align-items:center;justify-content:center;color:{{ app_type.color }};font-size:1.1rem;">
+      <i class="ti ti-{{ app_type.icon or 'file-text' }}"></i>
+    </div>
+    <h1 class="page-title" style="font-size:1.25rem;">{{ app_type.name }}</h1>
+  </div>
+
+  {% if app_type.description %}
+  <div class="card" style="margin-bottom:1.25rem;border-color:{{ app_type.color }}33;background:{{ app_type.color }}08;">
+    <p style="font-size:0.875rem;color:var(--text-muted);line-height:1.6;">{{ app_type.description }}</p>
+  </div>
+  {% endif %}
+
+  {# ── Under-18 restriction notice (shown after submission or on re-render) ── #}
+  {% if under_18_notice %}
+  <div id="under18Banner" style="background:#fef2f2;border:1.5px solid #ef4444;border-radius:10px;padding:1.1rem 1.25rem;margin-bottom:1.25rem;display:flex;gap:0.75rem;align-items:flex-start;">
+    <span style="font-size:1.5rem;line-height:1;">🚨</span>
+    <div>
+      <p style="font-weight:700;color:#dc2626;margin:0 0 0.35rem;">Notice: You are under 18</p>
+      <p style="font-size:0.875rem;color:#7f1d1d;margin:0 0 0.5rem;">The following restrictions have been applied for <strong>3 months</strong>:</p>
+      <ul style="margin:0;padding-left:1.2rem;font-size:0.875rem;color:#7f1d1d;line-height:1.8;">
+        <li>You cannot own a firearm (legal or illegal).</li>
+        <li>You cannot create or participate in any priorities.</li>
+      </ul>
+      <p style="font-size:0.8rem;color:#991b1b;margin:0.5rem 0 0;">A DM has been sent to your Discord account with full details.</p>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="card">
+    <form method="POST">
+      {% if schema %}
+        {% for field in schema %}
+        <div style="margin-bottom:1.25rem;">
+          <label class="form-label" for="{{ field.key }}">
+            {{ field.label }}
+            {% if field.get('required') %}<span style="color:var(--red);">*</span>{% endif %}
+          </label>
+
+          {# ── Age field detection: key is 'age' OR label matches common patterns ── #}
+          {% if field.key == 'age' or field.label|lower in ['how old are you?', 'how old are you', 'age', 'your age'] %}
+            <select id="{{ field.key }}" name="{{ field.key }}" class="form-input"
+                    {% if field.get('required') %}required{% endif %}
+                    onchange="checkAgeWarning(this.value)">
+              <option value="">Select your age…</option>
+              {% for age_val in range(13, 101) %}
+                <option value="{{ age_val }}"
+                  {% if request.form.get(field.key) and request.form.get(field.key)|int == age_val %}selected{% endif %}>
+                  {{ age_val }}
+                </option>
+              {% endfor %}
+            </select>
+            {# Live under-18 warning shown before submission #}
+            <div id="ageWarning" style="display:none;margin-top:0.5rem;background:#fef9c3;border:1px solid #ca8a04;border-radius:7px;padding:0.65rem 0.9rem;font-size:0.82rem;color:#713f12;">
+              ⚠️ <strong>You are under 18.</strong> Submitting will automatically apply restrictions for 3 months:
+              no firearms (legal or illegal), no creating or participating in priorities.
+              A DM will be sent to your Discord with full details.
+            </div>
+
+          {% elif field.type == 'textarea' %}
+            <textarea id="{{ field.key }}" name="{{ field.key }}" class="form-input"
+                      rows="5" placeholder="{{ field.get('placeholder','') }}"
+                      {% if field.get('required') %}required{% endif %}
+                      {% if field.get('min_length') %}minlength="{{ field.min_length }}"{% endif %}>{{ request.form.get(field.key, '') }}</textarea>
+
+          {% elif field.type == 'select' %}
+            <select id="{{ field.key }}" name="{{ field.key }}" class="form-input" {% if field.get('required') %}required{% endif %}>
+              <option value="">Select an option…</option>
+              {% set raw_opts = field.get('options', []) %}
+              {% set opts = raw_opts if raw_opts is iterable and raw_opts is not string else raw_opts.split(',') %}
+              {% for opt in opts %}
+                {% set opt_val = opt.strip() if opt is string else opt %}
+                {% if opt_val %}
+                  <option value="{{ opt_val }}" {% if request.form.get(field.key) == opt_val %}selected{% endif %}>{{ opt_val }}</option>
+                {% endif %}
+              {% endfor %}
+            </select>
+
+          {% else %}
+            <input type="{{ field.type or 'text' }}" id="{{ field.key }}" name="{{ field.key }}"
+                   class="form-input" placeholder="{{ field.get('placeholder','') }}"
+                   value="{{ request.form.get(field.key, '') }}"
+                   {% if field.get('required') %}required{% endif %}
+                   {% if field.get('min_length') %}minlength="{{ field.min_length }}"{% endif %} />
+          {% endif %}
+
+          {% if field.get('min_length') %}
+            <p style="font-size:0.75rem;color:var(--text-subtle);margin-top:0.25rem;">Minimum {{ field.min_length }} characters</p>
+          {% endif %}
+        </div>
+        {% endfor %}
+      {% else %}
+      <div style="text-align:center;padding:2rem;color:var(--text-subtle);">
+        <i class="ti ti-settings" style="font-size:1.5rem;display:block;margin-bottom:0.5rem;"></i>
+        This application has no custom fields yet. Submit to express your interest.
+      </div>
+      {% endif %}
+
+      <div style="border-top:1px solid var(--border);padding-top:1.25rem;margin-top:1.25rem;display:flex;justify-content:space-between;align-items:center;">
+        <a href="{{ url_for('applications.list_types') }}" class="btn btn-ghost">Cancel</a>
+        <button type="submit" class="btn btn-primary" style="padding:0.625rem 2rem;">
+          <i class="ti ti-send"></i> Submit Application
+        </button>
+      </div>
+    </form>
+  </div>
+
+  {% if app_type.requires_discord and current_user.discord_id %}
+  <p style="text-align:center;font-size:0.8rem;color:var(--text-subtle);margin-top:1rem;">
+    <i class="ti ti-brand-discord"></i> Applying as Discord user <strong>{{ current_user.discord_username }}</strong>
+  </p>
+  {% endif %}
+</div>
+
+<script>
+function checkAgeWarning(val) {
+  var warn = document.getElementById('ageWarning');
+  if (!warn) return;
+  warn.style.display = (val && parseInt(val) < 18) ? 'block' : 'none';
+}
+// Re-check on page load in case of form re-render after a validation error
+document.addEventListener('DOMContentLoaded', function () {
+  var sel = document.getElementById('age');
+  if (sel && sel.value) checkAgeWarning(sel.value);
+});
+</script>
+{% endblock %}

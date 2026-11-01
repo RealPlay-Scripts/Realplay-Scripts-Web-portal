@@ -1,0 +1,693 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}User: {{ user.username }}
+<style>
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+  padding: 1rem;
+}
+.modal-overlay.hidden { display: none !important; }
+.modal-box {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  width: 420px;
+  max-width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+</style>
+{% endblock %}
+{% block admin_content %}
+<div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1.5rem;">
+  <a href="{{ url_for('admin.users') }}" style="color:var(--text-muted);text-decoration:none;"><i class="ti ti-arrow-left"></i></a>
+  <h1 class="page-title">{{ user.username }}</h1>
+  {% if user.is_banned %}<span class="badge badge-red">Banned</span>{% endif %}
+  {% if not user.is_active %}<span class="badge badge-gray">Inactive</span>{% endif %}
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;">
+
+  <!-- Profile card -->
+  <div>
+    <div class="card" style="margin-bottom:1rem;">
+      <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.25rem;">
+        {% if user.discord_avatar_url %}
+          <img src="{{ user.discord_avatar_url }}" class="avatar" style="width:56px;height:56px;" />
+        {% else %}
+          <div class="avatar" style="width:56px;height:56px;background:var(--accent-dim);font-size:1.25rem;">{{ user.username[0].upper() }}</div>
+        {% endif %}
+        <div>
+          <div style="font-size:1.1rem;font-weight:700;">{{ user.username }}</div>
+          <div style="font-size:0.8rem;color:var(--text-muted);">{{ user.email }}</div>
+          <div style="display:flex;gap:4px;margin-top:4px;">
+            {% for role in user.roles %}<span class="badge" style="background:{{ role.color }}22;color:{{ role.color }};border-color:{{ role.color }}44;font-size:0.6rem;">{{ role.display_name }}</span>{% endfor %}
+          </div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;font-size:0.8rem;">
+        <div><div style="color:var(--text-subtle);">Member Since</div><div style="font-weight:600;">{{ user.created_at.strftime('%d %b %Y') }}</div></div>
+        <div><div style="color:var(--text-subtle);">Last Login</div><div style="font-weight:600;">{{ user.last_login.strftime('%d %b %Y') if user.last_login else 'Never' }}</div></div>
+        <div><div style="color:var(--text-subtle);">Login Count</div><div style="font-weight:600;">{{ user.login_count or 0 }}</div></div>
+        <div><div style="color:var(--text-subtle);">2FA</div><div style="font-weight:600;">{{ '✓ Enabled' if user.totp_enabled else '✗ Disabled' }}</div></div>
+        <div><div style="color:var(--text-subtle);">Discord ID</div><div style="font-weight:600;font-family:'JetBrains Mono',monospace;font-size:0.75rem;">{{ user.discord_id or '—' }}</div></div>
+        <div><div style="color:var(--text-subtle);">Discord User</div><div style="font-weight:600;">{{ user.discord_username or '—' }}</div></div>
+      </div>
+    </div>
+
+    <!-- Assign roles -->
+    <div class="card" style="margin-bottom:1rem;">
+      <div class="card-title" style="margin-bottom:1rem;">Assign Roles</div>
+      <form method="POST" action="{{ url_for('admin.update_user', user_id=user.id) }}">
+        <input type="hidden" name="action" value="update_roles"/>
+        <div style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:1rem;">
+          {% for role in roles %}
+          <label style="display:flex;align-items:center;gap:0.75rem;cursor:pointer;padding:0.5rem;border-radius:8px;border:1px solid {% if role in user.roles %}{{ role.color }}44{% else %}transparent{% endif %};background:{% if role in user.roles %}{{ role.color }}11{% else %}transparent{% endif %};">
+            <input type="checkbox" name="roles" value="{{ role.id }}" {% if role in user.roles %}checked{% endif %} style="accent-color:{{ role.color }};" />
+            <div style="width:10px;height:10px;border-radius:50%;background:{{ role.color }};flex-shrink:0;"></div>
+            <span style="font-weight:600;font-size:0.875rem;">{{ role.display_name }}</span>
+            <span style="font-size:0.75rem;color:var(--text-subtle);">{{ role.description }}</span>
+          </label>
+          {% endfor %}
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm" style="width:100%;justify-content:center;">Save Roles</button>
+      </form>
+    </div>
+
+    <!-- Actions -->
+    <div class="card" style="margin-bottom:1rem;">
+      <div class="card-title" style="margin-bottom:1rem;">Actions</div>
+      <div style="display:flex;flex-direction:column;gap:0.5rem;">
+        {% if not user.is_banned %}
+        <button class="btn btn-danger btn-sm" onclick="openModal('ban-modal')"><i class="ti ti-ban"></i> Ban User</button>
+        {% else %}
+        <form method="POST" action="{{ url_for('admin.update_user', user_id=user.id) }}"><input type="hidden" name="action" value="unban"/><button type="submit" class="btn btn-success btn-sm"><i class="ti ti-circle-check"></i> Unban</button></form>
+        {% endif %}
+        {% if user.is_active %}
+        <form method="POST" action="{{ url_for('admin.update_user', user_id=user.id) }}"><input type="hidden" name="action" value="deactivate"/><button type="submit" class="btn btn-ghost btn-sm"><i class="ti ti-user-off"></i> Deactivate</button></form>
+        {% else %}
+        <form method="POST" action="{{ url_for('admin.update_user', user_id=user.id) }}"><input type="hidden" name="action" value="activate"/><button type="submit" class="btn btn-success btn-sm"><i class="ti ti-user-check"></i> Activate</button></form>
+        {% endif %}
+        <button class="btn btn-ghost btn-sm" onclick="openModal('pw-modal')"><i class="ti ti-key"></i> Reset Password</button>
+        <button class="btn btn-ghost btn-sm" onclick="openModal('notif-modal')"><i class="ti ti-bell"></i> Send Notification</button>
+        <button class="btn btn-ghost btn-sm" onclick="openModal('discord-modal')"><i class="ti ti-brand-discord"></i> Set Discord ID</button>
+        {% if user.discord_id %}
+        <button class="btn btn-ghost btn-sm" onclick="syncDiscord({{ user.id }},this)"><i class="ti ti-refresh"></i> Sync Discord Roles</button>
+        <form method="POST" action="{{ url_for('admin.update_user', user_id=user.id) }}" onsubmit="return confirm('Unlink Discord from {{ user.username }}?')" style="display:inline;">
+          <input type="hidden" name="action" value="clear_discord_id"/>
+          <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--red);"><i class="ti ti-unlink"></i> Unlink Discord</button>
+        </form>
+        {% endif %}
+        {% if user.id != current_user.id %}
+        <form method="POST" action="{{ url_for('admin.update_user', user_id=user.id) }}" onsubmit="return confirm('Delete {{ user.username }}? This cannot be undone.')"><input type="hidden" name="action" value="delete"/><button type="submit" class="btn btn-danger btn-sm"><i class="ti ti-trash"></i> Delete User</button></form>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <!-- Applications -->
+    <div class="card" style="padding:0;overflow:hidden;margin-bottom:1rem;">
+      <div style="padding:1rem 1.25rem;border-bottom:1px solid var(--border);"><span class="card-title">Applications</span></div>
+      <table class="data-table">
+        <thead><tr><th>Type</th><th>Status</th><th>Submitted</th><th></th></tr></thead>
+        <tbody>
+          {% for app in applications %}
+          <tr>
+            <td style="font-weight:600;font-size:0.875rem;">{{ app.application_type.name }}</td>
+            <td><span class="badge badge-{{ app.status_badge_class }}">{{ app.status.replace('_',' ').title() }}</span></td>
+            <td style="font-size:0.8rem;color:var(--text-muted);">{{ app.submitted_at.strftime('%d %b %Y') }}</td>
+            <td><a href="{{ url_for('admin.review_application', app_id=app.id) }}" class="btn btn-ghost btn-sm"><i class="ti ti-eye"></i></a></td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" style="text-align:center;padding:2rem;color:var(--text-subtle);">No applications</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Audit log -->
+    <div class="card" style="padding:0;overflow:hidden;">
+      <div style="padding:1rem 1.25rem;border-bottom:1px solid var(--border);"><span class="card-title">Recent Activity</span></div>
+      <div style="padding:0.5rem;max-height:400px;overflow-y:auto;">
+        {% for log in audit_logs %}
+        <div style="display:flex;gap:0.75rem;padding:0.5rem 0.75rem;font-size:0.8rem;border-radius:6px;">
+          <div style="color:var(--text-subtle);font-family:'JetBrains Mono',monospace;flex-shrink:0;">{{ log.created_at.strftime('%d/%m %H:%M') }}</div>
+          <div style="color:var(--text-primary);">{{ log.action.replace('.',' › ').replace('_',' ') }}</div>
+          {% if log.ip_address %}<div style="color:var(--text-subtle);margin-left:auto;font-family:'JetBrains Mono',monospace;">{{ log.ip_address }}</div>{% endif %}
+        </div>
+        {% else %}
+        <p style="padding:1.5rem;text-align:center;color:var(--text-subtle);">No activity logged</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Live Ingame Panel ─────────────────────────────────────── -->
+{% if user.discord_id %}
+<div id="live-panel" style="margin-bottom:1.5rem;">
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+      <div style="display:flex;align-items:center;gap:0.6rem;">
+        <span id="live-dot" style="width:10px;height:10px;border-radius:50%;background:var(--text-subtle);flex-shrink:0;transition:background 0.4s;"></span>
+        <span class="card-title" style="margin:0;">Live Ingame Status</span>
+        <span id="live-badge" style="font-size:0.7rem;padding:2px 8px;border-radius:99px;background:var(--surface-3);color:var(--text-muted);font-weight:600;">Loading…</span>
+      </div>
+      <span style="font-size:0.72rem;color:var(--text-subtle);">Auto-refreshes every 15s</span>
+    </div>
+
+    <!-- Playtime row -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.75rem;margin-bottom:1rem;">
+      <div style="background:var(--surface-3);border-radius:8px;padding:0.75rem 1rem;">
+        <div style="font-size:0.7rem;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;">Session Time</div>
+        <div id="live-session" style="font-size:1.2rem;font-weight:700;font-variant-numeric:tabular-nums;">—</div>
+      </div>
+      <div style="background:var(--surface-3);border-radius:8px;padding:0.75rem 1rem;">
+        <div style="font-size:0.7rem;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;">Today</div>
+        <div id="live-today" style="font-size:1.2rem;font-weight:700;font-variant-numeric:tabular-nums;">—</div>
+      </div>
+      <div style="background:var(--surface-3);border-radius:8px;padding:0.75rem 1rem;">
+        <div style="font-size:0.7rem;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;">All-Time</div>
+        <div id="live-total" style="font-size:1.2rem;font-weight:700;font-variant-numeric:tabular-nums;">—</div>
+      </div>
+    </div>
+
+    <!-- Location + economy (only shown when online) -->
+    <div id="live-online-section" style="display:none;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1rem;">
+        <div style="background:var(--surface-3);border-radius:8px;padding:0.75rem 1rem;">
+          <div style="font-size:0.7rem;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;">Cash</div>
+          <div id="live-cash" style="font-size:1.1rem;font-weight:700;">—</div>
+        </div>
+        <div style="background:var(--surface-3);border-radius:8px;padding:0.75rem 1rem;">
+          <div style="font-size:0.7rem;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;">Bank</div>
+          <div id="live-bank" style="font-size:1.1rem;font-weight:700;">—</div>
+        </div>
+      </div>
+
+      <!-- Coordinates -->
+      <div style="background:var(--surface-3);border-radius:8px;padding:0.75rem 1rem;margin-bottom:1rem;">
+        <div style="font-size:0.7rem;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Last Known Coordinates</div>
+        <div style="display:flex;gap:1.5rem;font-family:'JetBrains Mono',monospace;font-size:0.85rem;">
+          <span>X: <strong id="live-x">—</strong></span>
+          <span>Y: <strong id="live-y">—</strong></span>
+          <span>Z: <strong id="live-z">—</strong></span>
+          <span style="margin-left:auto;color:var(--text-subtle);">Ping: <strong id="live-ping">—</strong>ms</span>
+        </div>
+      </div>
+
+      <!-- Mini map — SVG-based, no external dependencies -->
+      <div style="background:var(--surface-3);border-radius:8px;padding:0.75rem 1rem;">
+        <div style="font-size:0.7rem;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Map Position</div>
+        <div style="position:relative;width:100%;max-width:520px;margin:0 auto;">
+          <canvas id="live-map" width="520" height="360"
+            style="width:100%;border-radius:8px;border:1px solid var(--border);display:block;background:#0e1a0e;"></canvas>
+          <div id="live-zone" style="position:absolute;bottom:6px;left:8px;font-size:0.7rem;
+               background:rgba(0,0,0,.75);color:#fff;padding:2px 10px;border-radius:99px;pointer-events:none;">—</div>
+          <div style="position:absolute;top:6px;right:8px;font-size:0.65rem;color:rgba(255,255,255,0.35);">GTA V</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="live-offline-msg" style="display:none;text-align:center;padding:1.5rem;color:var(--text-subtle);font-size:0.875rem;">
+      <i class="ti ti-user-off" style="font-size:1.5rem;display:block;margin-bottom:0.4rem;"></i>
+      Player is not currently in-game
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  var LIVE_URL = "{{ url_for('admin.user_live_data', user_id=user.id) }}";
+  var liveInterval = null;
+  var sessionOriginSecs = 0;   // seconds at last API poll
+  var sessionOriginTs   = 0;   // wall-clock ms at last API poll
+  var tickInterval      = null;
+
+  // Zone name lookup — rough GTA V regions
+  var ZONES = [
+    [-2180,-3300,-1100,-1000,'Del Perro / Vespucci'],
+    [-1000,-3300, 1200,-1000,'Downtown Los Santos'],
+    [ 1200,-3300, 3000,-1000,'East LS / Cypress Flats'],
+    [-2500,-1000,  200, 1500,'Rockford Hills / Vinewood'],
+    [  200,-1000, 3000, 1500,'East Vinewood / La Mesa'],
+    [-4000, 1500,    0, 4000,'Chumash / Banham Canyon'],
+    [    0, 1500, 3500, 4000,'Sandy Shores / Alamo Sea'],
+    [-4000, 4000, 4500, 8000,'Paleto Bay / Blaine County'],
+    [-2500,-4000, 3000,-3300,'Ocean / Harbor'],
+  ];
+
+  function getZone(x, y) {
+    for (var i = 0; i < ZONES.length; i++) {
+      var z = ZONES[i];
+      if (x >= z[0] && x <= z[2] && y >= z[1] && y <= z[3]) return z[4];
+    }
+    return 'Los Santos';
+  }
+
+  function pad(n) { return String(Math.floor(n)).padStart(2,'0'); }
+  function fmtHM(secs) {
+    var h = Math.floor(secs/3600), m = Math.floor((secs%3600)/60);
+    return h + 'h ' + pad(m) + 'm';
+  }
+  function fmtHMS(secs) {
+    return pad(secs/3600) + ':' + pad((secs%3600)/60) + ':' + pad(secs%60);
+  }
+  function fmtMoney(n) {
+    if (n == null) return '—';
+    return '$' + Number(n).toLocaleString();
+  }
+
+  // ── GTA V SVG map drawn on canvas — no external image needed ──────────────
+  // World bounds: X -4096..4096 (west→east), Y -4096..8192 (south→north)
+  // Canvas is 520×360. We show the full world but crop to a viewport centred
+  // on the player so they always appear in the middle with context around them.
+
+  // World→canvas pixel (full world, 520×360 = 8192×5734 units shown… too zoomed out)
+  // Instead: fixed viewport 4000 units wide, 2800 units tall, centred on player
+  var MAP_VIEW_W = 4800;   // world units visible horizontally
+  var MAP_VIEW_H = 3350;   // world units visible vertically
+
+  // Terrain zones: [label, x1, y1, x2, y2, fillColor] (world coords, Y north-positive)
+  var TERRAIN = [
+    // Ocean / water
+    ['', -4096,-4096, 4096,-2900, '#0d2340'],
+    // LS harbour / south coast water
+    ['', -3200,-2900, 0,-2000, '#0d2340'],
+    // Main Los Santos city
+    ['Los Santos', -1800,-3100, 1200,-500, '#2a2a2a'],
+    // LS suburbs east
+    ['', 1200,-3000, 2800,-800, '#1e2e1e'],
+    // Vinewood / Rockford Hills (north of LS)
+    ['Vinewood', -2000,-500, 500, 1000, '#2a3a1a'],
+    // Chumash / Pacific Bluffs (west coast)
+    ['', -4096,-1200, -2000, 2000, '#1e3520'],
+    // Grand Senora Desert
+    ['Sandy Shores', 800, 1000, 3800, 4500, '#4a3c1e'],
+    // Alamo Sea (water)
+    ['', 800, 2200, 2400, 3200, '#0d2a4a'],
+    // Zancudo / Fort (north-west)
+    ['', -3500, 1000, -1000, 3500, '#1e3520'],
+    // Chiliad / highlands
+    ['Mt Chiliad', -800, 2500, 1200, 5000, '#2a4020'],
+    // Blaine County north
+    ['Blaine Co.', -2000, 3500, 3000, 6000, '#1e3520'],
+    // Paleto Bay area
+    ['Paleto Bay', -2000, 5800, 1500, 8192, '#1e2e1e'],
+    // General land fill
+    ['', -4096,-4096, 4096, 8192, '#1a2e14'],
+  ];
+
+  // Major roads (approximate polylines in world coords) [x1,y1, x2,y2, ...]
+  var ROADS = [
+    // Great Ocean Highway (west coast, N-S)
+    [-3200,-2800, -3400,-1000, -3200,1000, -3000,3000, -2800,5500, -2400,6800],
+    // Route 1 / Olympic Freeway (LS east-west)
+    [-1800,-1000, 0,-900, 800,-800, 1600,-700],
+    // Palomino Freeway (LS to Sandy, E-W)
+    [1200,-1000, 1800,-400, 2400,800, 2800,1800, 3200,2800],
+    // Route 68 (Sandy Shores corridor)
+    [0,2400, 800,2600, 1800,3200, 2800,3400],
+    // North Chumash Blvd
+    [-2800,2000, -2000,3500, -1200,5000, -400,6200, 200,7000],
+    // LS freeway ring (rough oval)
+    [-1400,-2600, -200,-2800, 1000,-2400, 1200,-1200, 800,-200, -400,-100, -1600,-600, -1800,-1800, -1400,-2600],
+  ];
+
+  // Landmark dots [x, y, label]
+  var LANDMARKS = [
+    [200, -800, 'Downtown LS'],
+    [-1336, -3044, 'LS Airport'],
+    [1135, 2671, 'Sandy Shores'],
+    [-270, 6629, 'Paleto Bay'],
+    [-1643, 2525, 'Zancudo'],
+    [496, 5603, 'Grapeseed'],
+  ];
+
+  function worldToCanvas(wx, wy, vpX, vpY, W, H) {
+    // vpX, vpY = centre of viewport in world coords
+    var scaleX = W / MAP_VIEW_W;
+    var scaleY = H / MAP_VIEW_H;
+    var px = (wx - (vpX - MAP_VIEW_W/2)) * scaleX;
+    var py = H - (wy - (vpY - MAP_VIEW_H/2)) * scaleY; // flip Y
+    return [px, py];
+  }
+
+  function drawMap(wx, wy) {
+    var canvas = document.getElementById('live-map');
+    if (!canvas) return;
+    var ctx = canvas.getContext('2d');
+    var W = canvas.width, H = canvas.height;
+
+    // Clamp viewport centre so we don't pan outside world
+    var vpX = Math.max(-4096 + MAP_VIEW_W/2, Math.min(4096 - MAP_VIEW_W/2, wx));
+    var vpY = Math.max(-4096 + MAP_VIEW_H/2, Math.min(8192 - MAP_VIEW_H/2, wy));
+
+    ctx.clearRect(0, 0, W, H);
+
+    // Draw terrain zones (back to front — last in array draws on top)
+    var drawn = [];
+    for (var i = TERRAIN.length-1; i >= 0; i--) {
+      var z = TERRAIN[i];
+      var zx1 = z[1], zy1 = z[2], zx2 = z[3], zy2 = z[4];
+      var p1 = worldToCanvas(zx1, zy1, vpX, vpY, W, H);
+      var p2 = worldToCanvas(zx2, zy2, vpX, vpY, W, H);
+      var rx = Math.min(p1[0],p2[0]), ry = Math.min(p1[1],p2[1]);
+      var rw = Math.abs(p2[0]-p1[0]), rh = Math.abs(p2[1]-p1[1]);
+      if (rx > W || ry > H || rx+rw < 0 || ry+rh < 0) continue;
+      ctx.fillStyle = z[5];
+      ctx.fillRect(rx, ry, rw, rh);
+      if (z[0]) drawn.push([z[0], rx+rw/2, ry+rh/2]);
+    }
+
+    // Draw roads
+    ctx.strokeStyle = 'rgba(80,75,50,0.55)';
+    ctx.lineWidth = 1.5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (var r = 0; r < ROADS.length; r++) {
+      var seg = ROADS[r];
+      ctx.beginPath();
+      for (var k = 0; k < seg.length-1; k+=2) {
+        var p = worldToCanvas(seg[k], seg[k+1], vpX, vpY, W, H);
+        if (k === 0) ctx.moveTo(p[0], p[1]);
+        else ctx.lineTo(p[0], p[1]);
+      }
+      ctx.stroke();
+    }
+
+    // Zone labels
+    ctx.font = '600 10px system-ui,sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    for (var d = 0; d < drawn.length; d++) {
+      ctx.fillText(drawn[d][0], drawn[d][1], drawn[d][2]);
+    }
+
+    // Landmark dots
+    for (var lm = 0; lm < LANDMARKS.length; lm++) {
+      var lp = worldToCanvas(LANDMARKS[lm][0], LANDMARKS[lm][1], vpX, vpY, W, H);
+      if (lp[0] < 0 || lp[0] > W || lp[1] < 0 || lp[1] > H) continue;
+      ctx.beginPath(); ctx.arc(lp[0], lp[1], 2, 0, Math.PI*2);
+      ctx.fillStyle = 'rgba(255,255,200,0.4)'; ctx.fill();
+      ctx.font = '9px system-ui,sans-serif'; ctx.fillStyle = 'rgba(255,255,200,0.5)';
+      ctx.textAlign = 'center';
+      ctx.fillText(LANDMARKS[lm][2], lp[0], lp[1]-6);
+    }
+
+    // Scale bar
+    var sbUnits = 500; // 500 world units
+    var sbPx = sbUnits * (W / MAP_VIEW_W);
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(12, H-10); ctx.lineTo(12+sbPx, H-10); ctx.stroke();
+    ctx.font = '9px monospace'; ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.textAlign = 'left';
+    ctx.fillText('500u', 14+sbPx, H-8);
+
+    // Player dot — always at canvas centre (viewport follows player)
+    var pw = worldToCanvas(wx, wy, vpX, vpY, W, H);
+    var px = pw[0], py = pw[1];
+
+    // Glow
+    var grd = ctx.createRadialGradient(px,py,0,px,py,18);
+    grd.addColorStop(0,'rgba(99,102,241,0.5)'); grd.addColorStop(1,'rgba(99,102,241,0)');
+    ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(px,py,18,0,Math.PI*2); ctx.fill();
+
+    // Outer ring
+    ctx.beginPath(); ctx.arc(px, py, 8, 0, Math.PI*2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 2; ctx.stroke();
+    // Fill
+    ctx.beginPath(); ctx.arc(px, py, 6, 0, Math.PI*2);
+    ctx.fillStyle = '#6366f1'; ctx.fill();
+    // Crosshair
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(px-22,py); ctx.lineTo(px+22,py); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(px,py-22); ctx.lineTo(px,py+22); ctx.stroke();
+  }
+
+  // Last known position from server
+  var lastPos = null;      // {x, y, ts} — coords + timestamp when received
+  var prevPos = null;      // position before lastPos (for velocity)
+  var playerOnline = false;
+
+  function applyData(d) {
+    var dot = document.getElementById('live-dot');
+    var badge = document.getElementById('live-badge');
+    var onlineSection = document.getElementById('live-online-section');
+    var offlineMsg = document.getElementById('live-offline-msg');
+
+    playerOnline = d.online;
+
+    if (d.online) {
+      dot.style.background = '#22c55e';
+      dot.style.boxShadow = '0 0 0 3px rgba(34,197,94,0.25)';
+      badge.textContent = 'ONLINE';
+      badge.style.background = 'rgba(34,197,94,0.15)';
+      badge.style.color = '#22c55e';
+      onlineSection.style.display = '';
+      offlineMsg.style.display = 'none';
+
+      document.getElementById('live-ping').textContent = d.ping != null ? d.ping : '—';
+      document.getElementById('live-cash').textContent = fmtMoney(d.cash);
+      document.getElementById('live-bank').textContent = fmtMoney(d.bank);
+
+      // Track position history for interpolation
+      if (d.x != null && d.y != null) {
+        if (lastPos && (Math.abs(d.x - lastPos.x) > 0.1 || Math.abs(d.y - lastPos.y) > 0.1)) {
+          prevPos = lastPos;  // save previous for velocity calc
+        }
+        lastPos = { x: d.x, y: d.y, z: d.z, ts: Date.now() };
+      }
+
+      // Seed live session ticker
+      sessionOriginSecs = d.session_seconds || 0;
+      sessionOriginTs   = Date.now();
+    } else {
+      dot.style.background = '#ef4444';
+      dot.style.boxShadow = 'none';
+      badge.textContent = 'OFFLINE';
+      badge.style.background = 'rgba(239,68,68,0.15)';
+      badge.style.color = '#ef4444';
+      onlineSection.style.display = 'none';
+      offlineMsg.style.display = '';
+      document.getElementById('live-session').textContent = '—';
+      sessionOriginSecs = 0; sessionOriginTs = 0;
+      lastPos = null; prevPos = null;
+    }
+
+    document.getElementById('live-today').textContent = fmtHM(d.today_secs || 0);
+    document.getElementById('live-total').textContent = fmtHM(d.total_secs || 0);
+  }
+
+  function getInterpolatedPos() {
+    if (!lastPos) return null;
+    // If we have two positions, extrapolate movement since last update
+    if (prevPos && prevPos.ts !== lastPos.ts) {
+      var dtServer = (lastPos.ts - prevPos.ts) / 1000;  // secs between server updates
+      var dtNow    = (Date.now() - lastPos.ts) / 1000;  // secs since last update
+      // Only extrapolate up to 1 server-interval ahead (don't overshoot)
+      var t = Math.min(dtNow / dtServer, 1.0);
+      var vx = (lastPos.x - prevPos.x) / dtServer;
+      var vy = (lastPos.y - prevPos.y) / dtServer;
+      return {
+        x: lastPos.x + vx * dtNow * t,
+        y: lastPos.y + vy * dtNow * t,
+        z: lastPos.z
+      };
+    }
+    return lastPos;
+  }
+
+  function fetchLive() {
+    fetch(LIVE_URL, {credentials:'same-origin'})
+      .then(function(r){ return r.json(); })
+      .then(applyData)
+      .catch(function(e){ console.warn('live poll error', e); });
+  }
+
+  // Master tick: runs every second — updates session clock AND redraws map with interpolated position
+  function startTicker() {
+    if (tickInterval) clearInterval(tickInterval);
+    tickInterval = setInterval(function() {
+      // Session clock
+      if (sessionOriginTs) {
+        var elapsed = Math.floor((Date.now() - sessionOriginTs) / 1000);
+        document.getElementById('live-session').textContent = fmtHMS(sessionOriginSecs + elapsed);
+      }
+      // Map + coords — redraw every second with interpolated position
+      if (playerOnline) {
+        var pos = getInterpolatedPos();
+        if (pos) {
+          document.getElementById('live-x').textContent = pos.x.toFixed(1);
+          document.getElementById('live-y').textContent = pos.y.toFixed(1);
+          document.getElementById('live-z').textContent = pos.z != null ? pos.z.toFixed(1) : '—';
+          drawMap(pos.x, pos.y);
+          document.getElementById('live-zone').textContent = getZone(pos.x, pos.y);
+        }
+      }
+    }, 1000);
+  }
+
+  fetchLive();
+  liveInterval = setInterval(fetchLive, 3000);
+  startTicker();
+})();
+</script>
+{% endif %}
+
+<!-- Modals -->
+<div id="ban-modal" class="modal-overlay hidden">
+  <div class="card" style="width:400px;max-width:90vw;">
+    <div style="font-size:1.1rem;font-weight:700;margin-bottom:1rem;">Ban {{ user.username }}</div>
+    <form method="POST" action="{{ url_for('admin.update_user', user_id=user.id) }}">
+      <input type="hidden" name="action" value="ban"/>
+      <label class="form-label">Reason</label>
+      <input type="text" name="reason" class="form-input" placeholder="Reason for ban…" style="margin-bottom:1rem;" />
+      <div style="display:flex;gap:0.5rem;">
+        <button type="submit" class="btn btn-danger">Ban User</button>
+        <button type="button" onclick="closeModal('ban-modal')" class="btn btn-ghost">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+<div id="pw-modal" class="modal-overlay hidden">
+  <div class="card" style="width:380px;max-width:90vw;">
+    <div style="font-size:1.1rem;font-weight:700;margin-bottom:1rem;">Reset Password</div>
+    <form method="POST" action="{{ url_for('admin.update_user', user_id=user.id) }}">
+      <input type="hidden" name="action" value="reset_password"/>
+      <label class="form-label">New Password</label>
+      <input type="text" name="new_password" class="form-input" placeholder="Min 8 characters" style="margin-bottom:1rem;" />
+      <div style="display:flex;gap:0.5rem;">
+        <button type="submit" class="btn btn-primary">Set Password</button>
+        <button type="button" onclick="closeModal('pw-modal')" class="btn btn-ghost">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+<div id="notif-modal" class="modal-overlay hidden">
+  <div class="card" style="width:420px;max-width:90vw;">
+    <div style="font-size:1.1rem;font-weight:700;margin-bottom:1rem;">Send Notification</div>
+    <form method="POST" action="{{ url_for('admin.update_user', user_id=user.id) }}">
+      <input type="hidden" name="action" value="send_notification"/>
+      <label class="form-label">Title</label>
+      <input type="text" name="notif_title" class="form-input" placeholder="Notification title" style="margin-bottom:0.75rem;" />
+      <label class="form-label">Message</label>
+      <textarea name="notif_message" class="form-input" rows="3" placeholder="Notification message…" style="margin-bottom:0.75rem;"></textarea>
+      <label class="form-label">Type</label>
+      <select name="notif_type" class="form-input" style="margin-bottom:1rem;">
+        <option value="info">Info</option><option value="success">Success</option><option value="warning">Warning</option><option value="error">Error</option>
+      </select>
+      <div style="display:flex;gap:0.5rem;">
+        <button type="submit" class="btn btn-primary">Send</button>
+        <button type="button" onclick="closeModal('notif-modal')" class="btn btn-ghost">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="discord-modal" class="modal-overlay hidden">
+  <div class="modal-box" style="width:440px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+      <div style="font-weight:700;display:flex;align-items:center;gap:0.5rem;">
+        <i class="ti ti-brand-discord" style="color:#5865f2;"></i> Set Discord ID
+      </div>
+      <button onclick="closeModal('discord-modal')" class="modal-close">×</button>
+    </div>
+
+    {% if user.discord_id %}
+    <div style="background:var(--surface-3);border-radius:8px;padding:0.75rem 1rem;margin-bottom:1rem;font-size:0.85rem;">
+      <div style="color:var(--text-subtle);font-size:0.72rem;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Current Discord ID</div>
+      <div style="font-family:'JetBrains Mono',monospace;color:var(--accent);">{{ user.discord_id }}</div>
+      {% if user.discord_username %}<div style="color:var(--text-muted);font-size:0.8rem;">@{{ user.discord_username }}</div>{% endif %}
+    </div>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('admin.update_user', user_id=user.id) }}">
+      <input type="hidden" name="action" value="set_discord_id"/>
+      <label class="form-label">Discord User ID</label>
+      <input type="text" name="discord_id" class="form-input" placeholder="e.g. 344560012997165057"
+             pattern="[0-9]+" title="Must be a numeric Discord user ID"
+             value="{{ user.discord_id or '' }}" style="margin-bottom:0.5rem; font-family:'JetBrains Mono',monospace;" required/>
+      <div style="font-size:0.75rem;color:var(--text-subtle);margin-bottom:1rem;">
+        Right-click any user in Discord → Copy User ID (requires Developer Mode on in Discord settings).
+      </div>
+      <div style="display:flex;gap:0.5rem;">
+        <button type="submit" class="btn btn-primary" style="flex:1;justify-content:center;">
+          <i class="ti ti-brand-discord"></i> Save Discord ID
+        </button>
+        <button type="button" onclick="closeModal('discord-modal')" class="btn btn-ghost">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function openModal(id) {
+  var el = document.getElementById(id);
+  if (el) el.classList.remove('hidden');
+}
+function closeModal(id) {
+  var el = document.getElementById(id);
+  if (el) el.classList.add('hidden');
+}
+document.addEventListener('click', function(e) {
+  if (e.target.classList.contains('modal-overlay')) e.target.classList.add('hidden');
+});
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.modal-overlay:not(.hidden)').forEach(function(m) { m.classList.add('hidden'); });
+  }
+});
+function syncDiscord(id, btn) {
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 1s linear infinite;"></i> Syncing…';
+  fetch('/auth/discord/admin/sync/' + id, {method: 'POST', credentials: 'same-origin'})
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      var msg = d.message || (d.success ? 'Synced' : 'Sync failed');
+      if (d.errors && d.errors.length) msg += ' — ' + d.errors[0];
+      showToast(msg, (d.success || d.no_changes) ? 'success' : 'error');
+    })
+    .catch(function(e) {
+      showToast('Sync failed: ' + e.message, 'error');
+    })
+    .finally(function() {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="ti ti-brand-discord"></i> Sync Discord Roles';
+    });
+}
+</script>
+
+<style>
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+  padding: 1rem;
+}
+.modal-overlay.hidden { display: none !important; }
+.modal-box {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  width: 420px;
+  max-width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+</style>
+{% endblock %}

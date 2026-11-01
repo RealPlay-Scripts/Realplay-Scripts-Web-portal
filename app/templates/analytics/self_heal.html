@@ -1,0 +1,570 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Self-Healing AI Engine{% endblock %}
+
+{% block content %}
+<style>
+  :root {
+    --sh-bg:       #0a0d14;
+    --sh-surface:  #111520;
+    --sh-border:   #1e2535;
+    --sh-accent:   #6ee7b7;
+    --sh-amber:    #fbbf24;
+    --sh-red:      #f87171;
+    --sh-blue:     #60a5fa;
+    --sh-muted:    #4b5563;
+    --sh-text:     #e2e8f0;
+    --sh-subtext:  #94a3b8;
+    --sh-code-bg:  #070a10;
+  }
+
+  .sh-wrap {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    background: var(--sh-bg);
+    min-height: 100vh;
+    padding: 2rem;
+    color: var(--sh-text);
+  }
+
+  .sh-header {
+    display: flex; align-items: center; gap: 1rem;
+    margin-bottom: 2rem;
+    padding-bottom: 1.25rem;
+    border-bottom: 1px solid var(--sh-border);
+  }
+  .sh-header h1 {
+    font-size: 1.35rem; font-weight: 700; letter-spacing: -0.02em;
+    color: var(--sh-accent);
+  }
+  .sh-header .sh-pill {
+    background: rgba(110,231,183,.12); color: var(--sh-accent);
+    border: 1px solid rgba(110,231,183,.25);
+    font-size: .65rem; padding: .25rem .6rem; border-radius: 999px;
+    letter-spacing: .08em; text-transform: uppercase;
+  }
+
+  .sh-grid {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    grid-template-rows: auto 1fr;
+    gap: 1rem;
+    height: calc(100vh - 160px);
+  }
+
+  /* ── Sidebar ── */
+  .sh-sidebar {
+    grid-row: 1 / 3;
+    background: var(--sh-surface);
+    border: 1px solid var(--sh-border);
+    border-radius: 10px;
+    padding: 1rem;
+    display: flex; flex-direction: column; gap: .5rem;
+    overflow-y: auto;
+  }
+  .sh-sidebar h3 {
+    font-size: .7rem; text-transform: uppercase; letter-spacing: .1em;
+    color: var(--sh-muted); margin: .5rem 0 .25rem;
+  }
+  .sh-file-btn {
+    display: flex; align-items: center; gap: .5rem;
+    width: 100%; text-align: left;
+    background: transparent; border: 1px solid transparent;
+    border-radius: 6px; padding: .45rem .65rem;
+    color: var(--sh-subtext); font-size: .8rem; cursor: pointer;
+    transition: all .15s;
+  }
+  .sh-file-btn:hover { background: rgba(255,255,255,.04); color: var(--sh-text); }
+  .sh-file-btn.active {
+    background: rgba(110,231,183,.08);
+    border-color: rgba(110,231,183,.2);
+    color: var(--sh-accent);
+  }
+  .sh-file-lines {
+    margin-left: auto; font-size: .65rem; color: var(--sh-muted);
+  }
+
+  .sh-mode-tabs {
+    display: flex; gap: .4rem; margin-bottom: .5rem;
+  }
+  .sh-tab {
+    flex: 1; padding: .45rem; border-radius: 6px; border: 1px solid var(--sh-border);
+    background: transparent; color: var(--sh-subtext); font-size: .78rem;
+    cursor: pointer; transition: all .15s; font-family: inherit;
+  }
+  .sh-tab.active {
+    background: rgba(110,231,183,.1); border-color: var(--sh-accent);
+    color: var(--sh-accent);
+  }
+
+  /* ── Main panels ── */
+  .sh-input-panel {
+    background: var(--sh-surface);
+    border: 1px solid var(--sh-border);
+    border-radius: 10px; padding: 1rem;
+  }
+  .sh-output-panel {
+    background: var(--sh-surface);
+    border: 1px solid var(--sh-border);
+    border-radius: 10px; padding: 1rem;
+    overflow-y: auto; display: flex; flex-direction: column; gap: .75rem;
+  }
+
+  textarea.sh-input {
+    width: 100%; background: var(--sh-code-bg);
+    border: 1px solid var(--sh-border); border-radius: 6px;
+    color: var(--sh-text); font-family: inherit; font-size: .82rem;
+    padding: .75rem; resize: vertical; min-height: 90px;
+    outline: none; transition: border-color .15s;
+  }
+  textarea.sh-input:focus { border-color: var(--sh-accent); }
+
+  .sh-btn {
+    display: inline-flex; align-items: center; gap: .45rem;
+    padding: .55rem 1.1rem; border-radius: 6px; border: none;
+    font-family: inherit; font-size: .8rem; font-weight: 600;
+    cursor: pointer; transition: all .15s;
+  }
+  .sh-btn-primary {
+    background: var(--sh-accent); color: #0a0d14;
+  }
+  .sh-btn-primary:hover { opacity: .88; }
+  .sh-btn-primary:disabled { opacity: .45; cursor: not-allowed; }
+  .sh-btn-danger  { background: rgba(248,113,113,.15); color: var(--sh-red); border: 1px solid rgba(248,113,113,.3); }
+  .sh-btn-success { background: rgba(110,231,183,.15); color: var(--sh-accent); border: 1px solid rgba(110,231,183,.3); }
+  .sh-btn-ghost   { background: rgba(255,255,255,.05); color: var(--sh-subtext); }
+  .sh-btn-ghost:hover { background: rgba(255,255,255,.09); color: var(--sh-text); }
+
+  /* ── Chat ── */
+  .sh-messages { flex: 1; display: flex; flex-direction: column; gap: .6rem; }
+  .sh-msg {
+    padding: .7rem .9rem; border-radius: 8px; font-size: .82rem; line-height: 1.6;
+    white-space: pre-wrap; word-break: break-word;
+  }
+  .sh-msg-user {
+    background: rgba(96,165,250,.08); border: 1px solid rgba(96,165,250,.15);
+    align-self: flex-end; max-width: 85%; color: var(--sh-blue);
+  }
+  .sh-msg-ai {
+    background: rgba(110,231,183,.05); border: 1px solid rgba(110,231,183,.12);
+    color: var(--sh-text);
+  }
+  .sh-msg-ai code { background: var(--sh-code-bg); padding: .1em .35em; border-radius: 3px; font-size: .88em; color: var(--sh-amber); }
+  .sh-msg pre {
+    background: var(--sh-code-bg); border: 1px solid var(--sh-border);
+    border-radius: 6px; padding: .75rem; overflow-x: auto;
+    margin: .5rem 0; font-size: .78rem; line-height: 1.5;
+  }
+
+  /* ── Patch card ── */
+  .sh-patch-card {
+    background: var(--sh-code-bg); border: 1px solid var(--sh-border);
+    border-radius: 8px; overflow: hidden;
+  }
+  .sh-patch-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: .6rem .9rem; background: rgba(251,191,36,.06);
+    border-bottom: 1px solid var(--sh-border);
+  }
+  .sh-patch-header span { font-size: .75rem; color: var(--sh-amber); }
+  .sh-patch-body { padding: .75rem; font-size: .75rem; }
+  .sh-patch-diff { display: grid; gap: .4rem; }
+  .sh-diff-rm { color: var(--sh-red); background: rgba(248,113,113,.06); padding: .4rem .6rem; border-radius: 4px; border-left: 3px solid var(--sh-red); }
+  .sh-diff-add { color: var(--sh-accent); background: rgba(110,231,183,.06); padding: .4rem .6rem; border-radius: 4px; border-left: 3px solid var(--sh-accent); }
+
+  /* ── Status ── */
+  .sh-status {
+    display: flex; align-items: center; gap: .4rem;
+    font-size: .75rem; color: var(--sh-muted);
+  }
+  .sh-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--sh-muted); }
+  .sh-dot.thinking { background: var(--sh-amber); animation: pulse 1s infinite; }
+  .sh-dot.ok       { background: var(--sh-accent); }
+  .sh-dot.err      { background: var(--sh-red); }
+  @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:.3 } }
+
+  .sh-explain {
+    font-size: .82rem; color: var(--sh-subtext); line-height: 1.6;
+    padding: .6rem .75rem; background: rgba(255,255,255,.03);
+    border-radius: 6px; border-left: 3px solid var(--sh-blue);
+  }
+
+  /* source viewer */
+  .sh-source-viewer {
+    background: var(--sh-code-bg); border: 1px solid var(--sh-border);
+    border-radius: 8px; overflow: auto; max-height: 400px;
+    font-size: .72rem; line-height: 1.5; padding: .75rem;
+    color: var(--sh-subtext);
+  }
+
+  .sh-input-row { display: flex; gap: .5rem; margin-top: .6rem; }
+  .sh-input-row textarea { flex: 1; min-height: 48px; }
+
+  .sh-empty { color: var(--sh-muted); font-size: .82rem; text-align: center; padding: 2rem; }
+
+  .sh-tag {
+    font-size: .65rem; padding: .2rem .5rem; border-radius: 4px;
+    text-transform: uppercase; letter-spacing: .06em;
+  }
+  .sh-tag-ai   { background: rgba(110,231,183,.12); color: var(--sh-accent); }
+  .sh-tag-user { background: rgba(96,165,250,.12);  color: var(--sh-blue); }
+</style>
+
+<div class="sh-wrap">
+  <div class="sh-header">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="color:var(--sh-accent)">
+      <path d="M12 2a10 10 0 1 0 10 10"/><path d="m22 2-8 8"/><path d="M17 2h5v5"/>
+    </svg>
+    <h1>Self-Healing AI Engine</h1>
+    <span class="sh-pill">v1.0 · CFRP</span>
+    <div id="sh-status" class="sh-status" style="margin-left:auto">
+      <div class="sh-dot" id="sh-dot"></div>
+      <span id="sh-status-text">Ready</span>
+    </div>
+  </div>
+
+  <div class="sh-grid">
+    <!-- Sidebar -->
+    <aside class="sh-sidebar">
+      <div class="sh-mode-tabs">
+        <button class="sh-tab active" onclick="setMode('analyse')" id="tab-analyse">🔍 Analyse</button>
+        <button class="sh-tab" onclick="setMode('chat')" id="tab-chat">💬 Chat</button>
+      </div>
+
+      <h3>Source Files</h3>
+      <div id="sh-file-list">
+        <div style="color:var(--sh-muted);font-size:.75rem">Loading…</div>
+      </div>
+
+      <div style="flex:1"></div>
+
+      <div id="sh-source-toggle" style="display:none">
+        <button class="sh-btn sh-btn-ghost" style="width:100%;justify-content:center;font-size:.75rem"
+                onclick="toggleSource()">📄 View Source</button>
+      </div>
+    </aside>
+
+    <!-- Input panel -->
+    <div class="sh-input-panel" id="sh-input-panel">
+      <!-- Analyse mode -->
+      <div id="panel-analyse">
+        <div style="font-size:.78rem;color:var(--sh-subtext);margin-bottom:.6rem">
+          Describe the bug. The AI will read the selected source file, understand the roles/model
+          logic, identify the root cause, and propose a targeted fix.
+        </div>
+        <textarea class="sh-input" id="bug-report" rows="4"
+          placeholder="e.g. Economy flags keep creating duplicates for reviewed players. Ewan.C has 6 flags all at $170k even though they were reviewed…"></textarea>
+        <div style="display:flex;gap:.5rem;margin-top:.6rem;align-items:center">
+          <button class="sh-btn sh-btn-primary" id="analyse-btn" onclick="runAnalyse()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            Analyse
+          </button>
+          <button class="sh-btn sh-btn-ghost" onclick="clearOutput()">Clear</button>
+          <span style="font-size:.72rem;color:var(--sh-muted);margin-left:auto" id="file-label">No file selected</span>
+        </div>
+      </div>
+      <!-- Chat mode -->
+      <div id="panel-chat" style="display:none">
+        <div style="font-size:.78rem;color:var(--sh-subtext);margin-bottom:.5rem">
+          Ask anything about the codebase — logic, roles, permissions, architecture.
+        </div>
+        <div class="sh-input-row">
+          <textarea class="sh-input" id="chat-input" rows="2"
+            placeholder="e.g. Why does the economy monitor use MAX instead of .first()?"
+            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"></textarea>
+          <button class="sh-btn sh-btn-primary" onclick="sendChat()" id="chat-btn">Send</button>
+        </div>
+        <div style="font-size:.7rem;color:var(--sh-muted);margin-top:.3rem">Shift+Enter for newline · Enter to send</div>
+      </div>
+    </div>
+
+    <!-- Output panel -->
+    <div class="sh-output-panel" id="sh-output-panel">
+      <div class="sh-empty" id="sh-empty">
+        ⬆ Select a file and describe the bug, or switch to Chat mode to ask about the code
+      </div>
+      <div id="sh-results" style="display:flex;flex-direction:column;gap:.75rem"></div>
+      <div id="sh-source-block" style="display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem">
+          <span style="font-size:.75rem;color:var(--sh-subtext)" id="sh-source-title">Source</span>
+          <button class="sh-btn sh-btn-ghost" style="font-size:.72rem;padding:.3rem .6rem" onclick="toggleSource()">✕ Close</button>
+        </div>
+        <pre class="sh-source-viewer" id="sh-source-pre"></pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentFile  = 'analytics/routes.py';
+let currentMode  = 'analyse';
+let chatHistory  = [];
+let sourceVisible = false;
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  loadFileList();
+});
+
+async function loadFileList() {
+  const res  = await fetch('/analytics/self-heal/files');
+  const list = await res.json();
+  const el   = document.getElementById('sh-file-list');
+  el.innerHTML = '';
+  list.forEach(f => {
+    const btn = document.createElement('button');
+    btn.className = 'sh-file-btn' + (f.key === currentFile ? ' active' : '');
+    btn.innerHTML = `<span>${f.key}</span><span class="sh-file-lines">${f.lines}</span>`;
+    btn.onclick = () => selectFile(f.key);
+    el.appendChild(btn);
+  });
+  updateFileLabel();
+}
+
+function selectFile(key) {
+  currentFile = key;
+  sourceVisible = false;
+  document.getElementById('sh-source-block').style.display = 'none';
+  document.querySelectorAll('.sh-file-btn').forEach(b => {
+    b.classList.toggle('active', b.querySelector('span').textContent === key);
+  });
+  updateFileLabel();
+  document.getElementById('sh-source-toggle').style.display = 'block';
+}
+
+function updateFileLabel() {
+  document.getElementById('file-label').textContent = `📄 ${currentFile}`;
+}
+
+function setMode(mode) {
+  currentMode = mode;
+  document.getElementById('panel-analyse').style.display = mode === 'analyse' ? 'block' : 'none';
+  document.getElementById('panel-chat').style.display    = mode === 'chat'    ? 'flex' : 'none';
+  if (mode === 'chat') {
+    document.getElementById('panel-chat').style.flexDirection = 'column';
+  }
+  document.getElementById('tab-analyse').classList.toggle('active', mode === 'analyse');
+  document.getElementById('tab-chat').classList.toggle('active', mode === 'chat');
+  if (mode === 'chat' && chatHistory.length === 0) {
+    document.getElementById('sh-results').innerHTML = '';
+    document.getElementById('sh-empty').style.display = 'block';
+    document.getElementById('sh-empty').textContent = '💬 Ask anything about the codebase — the AI has full context of the models, roles, and logic';
+  }
+}
+
+function setStatus(state, text) {
+  const dot = document.getElementById('sh-dot');
+  dot.className = 'sh-dot' + (state === 'thinking' ? ' thinking' : state === 'ok' ? ' ok' : state === 'err' ? ' err' : '');
+  document.getElementById('sh-status-text').textContent = text;
+}
+
+function clearOutput() {
+  document.getElementById('sh-results').innerHTML = '';
+  document.getElementById('sh-empty').style.display = 'block';
+  document.getElementById('sh-empty').textContent = '⬆ Select a file and describe the bug, or switch to Chat mode';
+}
+
+// ── Analyse ──────────────────────────────────────────────────────────────────
+async function runAnalyse() {
+  const report = document.getElementById('bug-report').value.trim();
+  if (!report) return;
+
+  const btn = document.getElementById('analyse-btn');
+  btn.disabled = true;
+  setStatus('thinking', 'Analysing…');
+  document.getElementById('sh-empty').style.display = 'none';
+
+  try {
+    const res  = await fetch('/analytics/self-heal/analyse', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ report, file: currentFile }),
+    });
+    const data = await res.json();
+    setStatus('ok', 'Analysis complete');
+    renderAnalysis(data, report);
+  } catch(e) {
+    setStatus('err', 'Request failed');
+    appendError(e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function renderAnalysis(data, report) {
+  const container = document.getElementById('sh-results');
+
+  // Report echo
+  const echo = document.createElement('div');
+  echo.className = 'sh-msg sh-msg-user';
+  echo.innerHTML = `<span class="sh-tag sh-tag-user">You</span><br>${escHtml(report)}`;
+  container.appendChild(echo);
+
+  // AI explanation
+  const explain = document.createElement('div');
+  explain.className = 'sh-msg sh-msg-ai';
+  explain.innerHTML = `<span class="sh-tag sh-tag-ai">AI Analysis</span><br>${formatAiText(data.raw)}`;
+  container.appendChild(explain);
+
+  // Patch card
+  if (data.patch && data.patch.file && data.patch.find) {
+    const card = document.createElement('div');
+    card.className = 'sh-patch-card';
+    const shortFind    = escHtml(data.patch.find.trim().slice(0, 200));
+    const shortReplace = escHtml((data.patch.replace || '').trim().slice(0, 200));
+    card.innerHTML = `
+      <div class="sh-patch-header">
+        <span>🔧 Proposed Patch — <code>${escHtml(data.patch.file)}</code></span>
+        <div style="display:flex;gap:.4rem">
+          <button class="sh-btn sh-btn-success" onclick="applyPatch(this)" style="font-size:.72rem;padding:.3rem .7rem"
+            data-file="${escHtml(data.patch.file)}"
+            data-find="${escHtml(data.patch.find)}"
+            data-replace="${escHtml(data.patch.replace || '')}">
+            ✓ Apply Patch
+          </button>
+        </div>
+      </div>
+      <div class="sh-patch-body">
+        <div style="font-size:.72rem;color:var(--sh-muted);margin-bottom:.4rem">
+          ${escHtml(data.patch.explanation || '')}
+        </div>
+        <div class="sh-patch-diff">
+          <div class="sh-diff-rm"><strong>−</strong> ${shortFind}</div>
+          <div class="sh-diff-add"><strong>+</strong> ${shortReplace}</div>
+        </div>
+      </div>`;
+    container.appendChild(card);
+  }
+
+  container.scrollTop = container.scrollHeight;
+}
+
+async function applyPatch(btn) {
+  const file    = btn.dataset.file;
+  const find    = btn.dataset.find;
+  const replace = btn.dataset.replace;
+
+  if (!confirm(`Apply patch to ${file}?\n\nA backup will be saved as ${file}.selfheal.bak`)) return;
+
+  btn.disabled = true;
+  btn.textContent = 'Applying…';
+  setStatus('thinking', 'Applying patch…');
+
+  try {
+    const res  = await fetch('/analytics/self-heal/apply', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ file, find, replace }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      btn.textContent = '✓ Applied';
+      btn.className = btn.className.replace('sh-btn-success', '') + ' sh-btn-ghost';
+      setStatus('ok', 'Patch applied — restart app to take effect');
+      appendSuccess(`✓ Patch applied to ${file}. Backup at ${data.backup}. Restart the app process to reload.`);
+    } else {
+      btn.disabled = false; btn.textContent = '✓ Apply Patch';
+      setStatus('err', data.error);
+      appendError(data.error);
+    }
+  } catch(e) {
+    btn.disabled = false; btn.textContent = '✓ Apply Patch';
+    setStatus('err', 'Apply failed');
+    appendError(e.message);
+  }
+}
+
+// ── Chat ─────────────────────────────────────────────────────────────────────
+async function sendChat() {
+  const input = document.getElementById('chat-input');
+  const text  = input.value.trim();
+  if (!text) return;
+
+  input.value = '';
+  document.getElementById('sh-empty').style.display = 'none';
+  document.getElementById('chat-btn').disabled = true;
+  setStatus('thinking', 'Thinking…');
+
+  chatHistory.push({ role: 'user', content: text });
+
+  const container = document.getElementById('sh-results');
+  const userMsg = document.createElement('div');
+  userMsg.className = 'sh-msg sh-msg-user';
+  userMsg.innerHTML = `<span class="sh-tag sh-tag-user">You</span><br>${escHtml(text)}`;
+  container.appendChild(userMsg);
+
+  const aiMsg = document.createElement('div');
+  aiMsg.className = 'sh-msg sh-msg-ai';
+  aiMsg.innerHTML = `<span class="sh-tag sh-tag-ai">AI</span><br><span style="color:var(--sh-muted)">…</span>`;
+  container.appendChild(aiMsg);
+  container.scrollTop = container.scrollHeight;
+
+  try {
+    const res  = await fetch('/analytics/self-heal/chat', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ messages: chatHistory, file: currentFile }),
+    });
+    const data = await res.json();
+    const reply = data.reply || data.error || 'No response';
+    chatHistory.push({ role: 'assistant', content: reply });
+    aiMsg.innerHTML = `<span class="sh-tag sh-tag-ai">AI</span><br>${formatAiText(reply)}`;
+    setStatus('ok', 'Done');
+  } catch(e) {
+    aiMsg.innerHTML = `<span class="sh-tag sh-tag-ai">AI</span><br><span style="color:var(--sh-red)">Error: ${escHtml(e.message)}</span>`;
+    setStatus('err', 'Chat failed');
+  } finally {
+    document.getElementById('chat-btn').disabled = false;
+    container.scrollTop = container.scrollHeight;
+  }
+}
+
+// ── Source viewer ─────────────────────────────────────────────────────────────
+async function toggleSource() {
+  const block = document.getElementById('sh-source-block');
+  if (sourceVisible) {
+    block.style.display = 'none';
+    sourceVisible = false;
+    return;
+  }
+  setStatus('thinking', 'Loading source…');
+  const res  = await fetch(`/analytics/self-heal/source?file=${encodeURIComponent(currentFile)}`);
+  const data = await res.json();
+  document.getElementById('sh-source-pre').textContent = data.content || 'Not found';
+  document.getElementById('sh-source-title').textContent = `📄 ${currentFile} (${data.lines} lines)`;
+  block.style.display = 'block';
+  sourceVisible = true;
+  block.scrollIntoView({ behavior: 'smooth' });
+  setStatus('ok', 'Ready');
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function appendError(msg) {
+  const el = document.createElement('div');
+  el.className = 'sh-explain';
+  el.style.borderLeftColor = 'var(--sh-red)';
+  el.style.color = 'var(--sh-red)';
+  el.textContent = '⚠ ' + msg;
+  document.getElementById('sh-results').appendChild(el);
+}
+function appendSuccess(msg) {
+  const el = document.createElement('div');
+  el.className = 'sh-explain';
+  el.textContent = msg;
+  document.getElementById('sh-results').appendChild(el);
+}
+
+function escHtml(s) {
+  return String(s || '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;');
+}
+
+function formatAiText(text) {
+  // Render code blocks and inline code nicely
+  return escHtml(text)
+    .replace(/```[\w]*\n?([\s\S]*?)```/g, '<pre>$1</pre>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong style="color:var(--sh-amber)">$1</strong>')
+    .replace(/\n/g, '<br>');
+}
+</script>
+{% endblock %}

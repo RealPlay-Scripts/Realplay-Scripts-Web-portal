@@ -1,0 +1,412 @@
+{% extends "admin/base_admin.html" %}
+{% block admin_content %}
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=DM+Sans:wght@400;500;600&display=swap');
+
+.cd-root { font-family: 'DM Sans', sans-serif; padding: 0.5rem 0 2rem; }
+
+.cd-top {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap;
+}
+.cd-heading { font-size: 1.15rem; font-weight: 600; color: var(--text); margin: 0 0 3px; }
+.cd-sub { font-size: 0.72rem; color: var(--text-subtle); font-family: 'JetBrains Mono', monospace; }
+
+/* Stats row */
+.cd-stats { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+.cd-stat {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 1rem 1.5rem; flex: 1; min-width: 160px;
+}
+.cd-stat-val { font-size: 1.6rem; font-weight: 700; color: var(--text); }
+.cd-stat-lbl { font-size: 0.72rem; color: var(--text-subtle); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.05em; }
+
+/* Filter bar */
+.cd-filters {
+  display: flex; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 1rem; align-items: center;
+}
+.cd-filters input, .cd-filters select {
+  background: var(--card); border: 1px solid var(--border); color: var(--text);
+  border-radius: 8px; padding: 0.45rem 0.75rem; font-size: 0.82rem;
+  font-family: 'JetBrains Mono', monospace;
+}
+.cd-filters input:focus, .cd-filters select:focus { outline: none; border-color: var(--accent); }
+
+/* Table */
+.cd-table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); }
+table.cd-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+table.cd-table thead { background: var(--card-alt, var(--card)); }
+table.cd-table th {
+  padding: 0.65rem 1rem; text-align: left; font-size: 0.68rem;
+  text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-subtle);
+  font-weight: 600; white-space: nowrap;
+}
+table.cd-table td {
+  padding: 0.65rem 1rem; border-top: 1px solid var(--border);
+  color: var(--text); vertical-align: middle;
+}
+table.cd-table tr:hover td { background: rgba(255,255,255,0.02); }
+.mono { font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; }
+
+/* Event badges */
+.badge {
+  display: inline-block; padding: 2px 10px; border-radius: 20px;
+  font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+}
+.badge-set    { background: rgba(237,66,69,0.15);   color: #ed4245; }
+.badge-retry  { background: rgba(254,231,92,0.15);  color: #fee75c; }
+.badge-clear  { background: rgba(87,242,135,0.15);  color: #57f287; }
+.badge-expire { background: rgba(153,170,181,0.15); color: #99aab5; }
+
+/* Clear buttons */
+.btn-clear {
+  background: rgba(87,242,135,0.12); color: #57f287; border: 1px solid rgba(87,242,135,0.3);
+  border-radius: 6px; padding: 3px 12px; font-size: 0.75rem; font-weight: 600;
+  cursor: pointer; transition: background 0.15s;
+}
+.btn-clear:hover { background: rgba(87,242,135,0.25); }
+.btn-clear:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Tabs */
+.cd-tabs { display: flex; gap: 0.5rem; margin-bottom: 1.25rem; }
+.cd-tab {
+  padding: 0.45rem 1.1rem; border-radius: 8px; font-size: 0.82rem; font-weight: 500;
+  cursor: pointer; border: 1px solid var(--border); color: var(--text-subtle);
+  background: var(--card); transition: all 0.15s;
+}
+.cd-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* Pagination */
+.cd-pagination { display: flex; gap: 0.4rem; justify-content: flex-end; margin-top: 1rem; flex-wrap: wrap; }
+.cd-page-btn {
+  padding: 0.35rem 0.75rem; border-radius: 6px; font-size: 0.78rem;
+  border: 1px solid var(--border); background: var(--card); color: var(--text); cursor: pointer;
+}
+.cd-page-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.cd-page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Toast */
+.cd-toast {
+  position: fixed; bottom: 1.5rem; right: 1.5rem; background: var(--card);
+  border: 1px solid var(--border); border-radius: 10px; padding: 0.75rem 1.25rem;
+  font-size: 0.82rem; color: var(--text); box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  opacity: 0; transition: opacity 0.2s; z-index: 9999; pointer-events: none;
+}
+.cd-toast.show { opacity: 1; }
+
+/* Empty state */
+.cd-empty { text-align: center; padding: 3rem 1rem; color: var(--text-subtle); font-size: 0.85rem; }
+
+/* Clear discord form */
+.cd-discord-form {
+  display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 0.85rem 1.1rem; margin-bottom: 1.25rem;
+}
+.cd-discord-form input {
+  background: var(--bg, #111); border: 1px solid var(--border); color: var(--text);
+  border-radius: 8px; padding: 0.45rem 0.75rem; font-size: 0.82rem;
+  font-family: 'JetBrains Mono', monospace; flex: 1; min-width: 200px;
+}
+.cd-discord-form input:focus { outline: none; border-color: var(--accent); }
+.btn-primary {
+  background: var(--accent); color: #fff; border: none; border-radius: 8px;
+  padding: 0.45rem 1.1rem; font-size: 0.82rem; font-weight: 600; cursor: pointer;
+}
+.btn-primary:hover { opacity: 0.88; }
+</style>
+
+<div class="cd-root">
+  <!-- Header -->
+  <div class="cd-top">
+    <div>
+      <div class="cd-heading">🔒 IP Cooldown Manager</div>
+      <div class="cd-sub">Players denied by the whitelist are cooled down for 1 hour</div>
+    </div>
+    <div style="display:flex;gap:0.6rem;align-items:center;">
+      <button class="btn-primary" onclick="loadAll()">↻ Refresh</button>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="cd-stats">
+    <div class="cd-stat">
+      <div class="cd-stat-val" id="stat-active">—</div>
+      <div class="cd-stat-lbl">Currently Active</div>
+    </div>
+    <div class="cd-stat">
+      <div class="cd-stat-val" id="stat-total">—</div>
+      <div class="cd-stat-lbl">Total Events (all time)</div>
+    </div>
+    <div class="cd-stat">
+      <div class="cd-stat-val" id="stat-retries">—</div>
+      <div class="cd-stat-lbl">Retry Attempts</div>
+    </div>
+    <div class="cd-stat">
+      <div class="cd-stat-val" id="stat-cleared">—</div>
+      <div class="cd-stat-lbl">Admin Clears</div>
+    </div>
+  </div>
+
+  <!-- Clear by Discord ID -->
+  <div class="cd-discord-form">
+    <span style="font-size:0.82rem;color:var(--text-subtle);white-space:nowrap;">Clear by Discord ID:</span>
+    <input type="text" id="inp-discord-id" placeholder="e.g. 123456789012345678" />
+    <input type="text" id="inp-discord-note" placeholder="Note (optional)" style="max-width:220px;" />
+    <button class="btn-clear" style="padding:0.45rem 1.1rem;font-size:0.82rem;" onclick="clearByDiscord()">Clear All IPs</button>
+  </div>
+
+  <!-- Tabs -->
+  <div class="cd-tabs">
+    <div class="cd-tab active" onclick="switchTab('active', this)">Active Cooldowns</div>
+    <div class="cd-tab" onclick="switchTab('all', this)">All Logs</div>
+  </div>
+
+  <!-- Active tab -->
+  <div id="tab-active">
+    <div class="cd-table-wrap">
+      <table class="cd-table">
+        <thead>
+          <tr>
+            <th>Player</th>
+            <th>Discord ID</th>
+            <th>IP Address</th>
+            <th>Cooled Down At</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="active-tbody">
+          <tr><td colspan="5" class="cd-empty">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- All logs tab -->
+  <div id="tab-all" style="display:none;">
+    <div class="cd-filters">
+      <input type="text" id="filter-ip" placeholder="Filter by IP…" oninput="debounceLoad()" />
+      <input type="text" id="filter-discord" placeholder="Filter by Discord ID…" oninput="debounceLoad()" />
+      <select id="filter-event" onchange="loadLogs(1)">
+        <option value="">All events</option>
+        <option value="cooldown_set">Cooldown Set</option>
+        <option value="cooldown_retry">Retry Blocked</option>
+        <option value="admin_cleared">Admin Cleared</option>
+      </select>
+    </div>
+    <div class="cd-table-wrap">
+      <table class="cd-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Event</th>
+            <th>Player</th>
+            <th>Discord ID</th>
+            <th>IP</th>
+            <th>Time Left</th>
+            <th>Cleared By</th>
+            <th>Timestamp</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="logs-tbody">
+          <tr><td colspan="9" class="cd-empty">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="cd-pagination" id="logs-pagination"></div>
+  </div>
+</div>
+
+<div class="cd-toast" id="toast"></div>
+
+<script>
+const CSRF = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+let _debounceTimer = null;
+function debounceLoad() {
+  clearTimeout(_debounceTimer);
+  _debounceTimer = setTimeout(() => loadLogs(1), 400);
+}
+
+function switchTab(tab, el) {
+  document.querySelectorAll('.cd-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab-active').style.display = tab === 'active' ? '' : 'none';
+  document.getElementById('tab-all').style.display    = tab === 'all'    ? '' : 'none';
+  if (tab === 'active') loadActive();
+  else loadLogs(1);
+}
+
+function toast(msg, ok = true) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.borderColor = ok ? '#57f287' : '#ed4245';
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2800);
+}
+
+function badgeHtml(event) {
+  const map = {
+    cooldown_set:   ['badge-set',    '🔒 Set'],
+    cooldown_retry: ['badge-retry',  '🔁 Retry'],
+    admin_cleared:  ['badge-clear',  '✅ Cleared'],
+    expired:        ['badge-expire', '⏱ Expired'],
+  };
+  const [cls, label] = map[event] || ['badge-expire', event];
+  return `<span class="badge ${cls}">${label}</span>`;
+}
+
+function relTime(iso) {
+  const d = new Date(iso + (iso.endsWith('Z') ? '' : 'Z'));
+  const diff = Math.floor((Date.now() - d) / 1000);
+  if (diff < 60)  return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff/3600)}h ago`;
+  return `${Math.floor(diff/86400)}d ago`;
+}
+
+// ── Load active cooldowns ──────────────────────────────────────────────────
+async function loadActive() {
+  const res  = await fetch('/api/cooldown/active');
+  const data = await res.json();
+  const tbody = document.getElementById('active-tbody');
+  document.getElementById('stat-active').textContent = data.active.length;
+
+  if (!data.active.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="cd-empty">No active cooldowns 🎉</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = data.active.map(r => `
+    <tr id="row-${r.ip.replace(/[:.]/g,'_')}">
+      <td>${r.player_name || '<span style="color:var(--text-subtle)">unknown</span>'}</td>
+      <td class="mono">${r.discord_id ? `<a href="/admin/users?discord_id=${r.discord_id}" style="color:var(--accent)">${r.discord_id}</a>` : '—'}</td>
+      <td class="mono">${r.ip}</td>
+      <td style="color:var(--text-subtle)">${relTime(r.created_at)}</td>
+      <td>
+        <button class="btn-clear" onclick="clearIp('${r.ip}', this)">Clear</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+// ── Load all logs ──────────────────────────────────────────────────────────
+async function loadLogs(page = 1) {
+  const ip      = document.getElementById('filter-ip').value.trim();
+  const discord = document.getElementById('filter-discord').value.trim();
+  const event   = document.getElementById('filter-event').value;
+
+  const params = new URLSearchParams({ page, per_page: 50 });
+  if (ip)      params.set('ip', ip);
+  if (discord) params.set('discord_id', discord);
+  if (event)   params.set('event', event);
+
+  const res  = await fetch(`/api/cooldown/logs?${params}`);
+  const data = await res.json();
+
+  document.getElementById('stat-total').textContent = data.total;
+
+  const tbody = document.getElementById('logs-tbody');
+  if (!data.logs.length) {
+    tbody.innerHTML = '<tr><td colspan="9" class="cd-empty">No records found</td></tr>';
+    document.getElementById('logs-pagination').innerHTML = '';
+    return;
+  }
+
+  tbody.innerHTML = data.logs.map(r => `
+    <tr>
+      <td class="mono" style="color:var(--text-subtle)">${r.id}</td>
+      <td>${badgeHtml(r.event)}</td>
+      <td>${r.player_name || '—'}</td>
+      <td class="mono">${r.discord_id || '—'}</td>
+      <td class="mono">${r.ip}</td>
+      <td>${r.seconds_left ? Math.ceil(r.seconds_left/60) + ' min' : '—'}</td>
+      <td>${r.cleared_by || '—'}</td>
+      <td style="color:var(--text-subtle)">${relTime(r.created_at)}</td>
+      <td>${r.event === 'cooldown_set' ? `<button class="btn-clear" onclick="clearIp('${r.ip}', this)">Clear</button>` : ''}</td>
+    </tr>
+  `).join('');
+
+  // Pagination
+  const pag = document.getElementById('logs-pagination');
+  pag.innerHTML = '';
+  for (let p = 1; p <= data.pages; p++) {
+    const btn = document.createElement('button');
+    btn.className = 'cd-page-btn' + (p === page ? ' active' : '');
+    btn.textContent = p;
+    btn.onclick = () => loadLogs(p);
+    pag.appendChild(btn);
+  }
+}
+
+// ── Clear by IP ────────────────────────────────────────────────────────────
+async function clearIp(ip, btn) {
+  btn.disabled = true;
+  btn.textContent = '…';
+  const res = await fetch('/api/cooldown/clear/ip', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+    body: JSON.stringify({ ip }),
+  });
+  const data = await res.json();
+  if (res.ok && data.ok) {
+    toast(`✅ Cleared: ${ip}`);
+    btn.textContent = 'Cleared';
+    btn.style.opacity = '0.4';
+    // Fade out active row if present
+    const rowId = 'row-' + ip.replace(/[:.]/g, '_');
+    const row = document.getElementById(rowId);
+    if (row) setTimeout(() => row.remove(), 500);
+  } else {
+    toast(`❌ Failed to clear`, false);
+    btn.disabled = false;
+    btn.textContent = 'Clear';
+  }
+}
+
+// ── Clear by Discord ID ────────────────────────────────────────────────────
+async function clearByDiscord() {
+  const discord_id = document.getElementById('inp-discord-id').value.trim();
+  const note       = document.getElementById('inp-discord-note').value.trim();
+  if (!discord_id) { toast('Enter a Discord ID first', false); return; }
+
+  const res = await fetch('/api/cooldown/clear/discord', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+    body: JSON.stringify({ discord_id, note }),
+  });
+  const data = await res.json();
+  if (res.ok && data.ok) {
+    toast(`✅ Cleared ${data.cleared_ips.length} IP(s) for ${discord_id}`);
+    document.getElementById('inp-discord-id').value  = '';
+    document.getElementById('inp-discord-note').value = '';
+    loadAll();
+  } else {
+    toast('❌ Failed to clear', false);
+  }
+}
+
+// ── Stats: count retries + clears from logs ────────────────────────────────
+async function loadStats() {
+  const [rRetry, rClear] = await Promise.all([
+    fetch('/api/cooldown/logs?per_page=1&event=cooldown_retry'),
+    fetch('/api/cooldown/logs?per_page=1&event=admin_cleared'),
+  ]);
+  const [dRetry, dClear] = await Promise.all([rRetry.json(), rClear.json()]);
+  document.getElementById('stat-retries').textContent = dRetry.total ?? '—';
+  document.getElementById('stat-cleared').textContent = dClear.total ?? '—';
+}
+
+function loadAll() {
+  loadActive();
+  loadStats();
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
+loadAll();
+setInterval(loadActive, 30000); // auto-refresh active list every 30s
+</script>
+
+{% endblock %}

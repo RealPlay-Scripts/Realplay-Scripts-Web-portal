@@ -1,0 +1,418 @@
+{% extends "admin/base_admin.html" %}
+{% block admin_content %}
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=DM+Sans:wght@400;500;600&display=swap');
+
+.pr-root { font-family: 'DM Sans', sans-serif; padding: 0.5rem 0 2rem; }
+
+/* ── Header ── */
+.pr-top { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; margin-bottom:1.25rem; flex-wrap:wrap; }
+.pr-heading { font-size:1.15rem; font-weight:500; color:var(--text); margin:0 0 3px; }
+.pr-sub { font-size:0.72rem; color:var(--text-subtle); font-family:'JetBrains Mono',monospace; letter-spacing:0.02em; }
+
+/* ── Cards row ── */
+.pr-stats { display:flex; gap:0.75rem; flex-wrap:wrap; margin-bottom:1.25rem; }
+.pr-stat-card {
+  flex:1; min-width:120px;
+  background:var(--surface-2); border:1px solid var(--border); border-radius:10px;
+  padding:0.875rem 1rem;
+}
+.pr-stat-label { font-size:0.65rem; color:var(--text-subtle); text-transform:uppercase; letter-spacing:.08em; margin-bottom:4px; }
+.pr-stat-val { font-size:1.4rem; font-weight:600; color:var(--text); font-family:'JetBrains Mono',monospace; }
+
+/* ── Controls ── */
+.pr-controls { display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center; margin-bottom:1rem; }
+.pr-search {
+  flex:1; min-width:200px; max-width:340px;
+  background:var(--surface-2); border:1px solid var(--border); border-radius:8px;
+  color:var(--text); font-size:0.82rem; padding:6px 11px;
+  font-family:'DM Sans',sans-serif;
+}
+.pr-search:focus { outline:none; border-color:var(--accent); }
+.pr-filter-btn {
+  background:var(--surface-2); border:1px solid var(--border); border-radius:8px;
+  color:var(--text-subtle); font-size:0.78rem; padding:6px 12px; cursor:pointer;
+  transition:all .2s; font-family:'DM Sans',sans-serif;
+}
+.pr-filter-btn.active { background:var(--accent-dim); border-color:var(--accent); color:var(--accent); }
+.pr-btn {
+  display:inline-flex; align-items:center; gap:6px;
+  background:var(--accent); color:#fff; border:none; border-radius:8px;
+  font-size:0.82rem; font-weight:500; padding:6px 14px; cursor:pointer;
+  transition:opacity .2s; font-family:'DM Sans',sans-serif;
+}
+.pr-btn:hover { opacity:.85; }
+.pr-btn.danger { background:#ef4444; }
+.pr-btn.ghost { background:transparent; border:1px solid var(--border); color:var(--text); }
+
+/* ── Table ── */
+.pr-table-wrap { background:var(--surface-2); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+.pr-table { width:100%; border-collapse:collapse; font-size:0.8rem; }
+.pr-table th {
+  text-align:left; font-size:0.65rem; font-weight:600; color:var(--text-subtle);
+  text-transform:uppercase; letter-spacing:.08em;
+  padding:10px 14px; background:var(--surface-3); border-bottom:1px solid var(--border);
+}
+.pr-table td { padding:10px 14px; border-bottom:1px solid var(--border); vertical-align:middle; color:var(--text); }
+.pr-table tr:last-child td { border-bottom:none; }
+.pr-table tr:hover td { background:var(--surface-3); }
+
+/* ── Badges ── */
+.badge {
+  display:inline-block; border-radius:20px; padding:2px 9px;
+  font-size:0.66rem; font-weight:700; border:1px solid;
+}
+.badge-moderator { background:rgba(99,102,241,0.12); color:#818cf8; border-color:rgba(99,102,241,.35); }
+.badge-admin     { background:rgba(245,158,11,0.12);  color:#fbbf24; border-color:rgba(245,158,11,.35); }
+.badge-superadmin{ background:rgba(239,68,68,0.12);  color:#f87171; border-color:rgba(239,68,68,.35); }
+.badge-owner     { background:rgba(168,85,247,0.12); color:#c084fc; border-color:rgba(168,85,247,.35); }
+.badge-active    { background:rgba(34,197,94,0.12);  color:#4ade80; border-color:rgba(34,197,94,.35); }
+.badge-revoked   { background:rgba(107,114,128,0.12);color:#9ca3af; border-color:rgba(107,114,128,.35); }
+.badge-expired   { background:rgba(239,68,68,0.08);  color:#f87171; border-color:rgba(239,68,68,.25); }
+
+/* ── Mono id ── */
+.mono { font-family:'JetBrains Mono',monospace; font-size:0.74rem; color:var(--text-subtle); }
+
+/* ── Modal ── */
+.pr-overlay {
+  display:none; position:fixed; inset:0; z-index:1000;
+  background:rgba(0,0,0,0.6); backdrop-filter:blur(4px);
+  align-items:center; justify-content:center;
+}
+.pr-overlay.open { display:flex; }
+.pr-modal {
+  background:var(--surface-1); border:1px solid var(--border); border-radius:14px;
+  padding:1.5rem; width:100%; max-width:520px; max-height:90vh; overflow-y:auto;
+  box-shadow:0 20px 60px rgba(0,0,0,.5);
+}
+.pr-modal h3 { font-size:1rem; font-weight:500; color:var(--text); margin:0 0 1.25rem; }
+.pr-form-row { margin-bottom:0.875rem; }
+.pr-form-row label { display:block; font-size:0.72rem; font-weight:600; color:var(--text-subtle); margin-bottom:4px; text-transform:uppercase; letter-spacing:.06em; }
+.pr-form-row input, .pr-form-row select, .pr-form-row textarea {
+  width:100%; box-sizing:border-box;
+  background:var(--surface-2); border:1px solid var(--border); border-radius:8px;
+  color:var(--text); font-size:0.82rem; padding:8px 11px;
+  font-family:'DM Sans',sans-serif;
+}
+.pr-form-row input:focus, .pr-form-row select:focus, .pr-form-row textarea:focus {
+  outline:none; border-color:var(--accent);
+}
+.pr-modal-actions { display:flex; gap:0.5rem; justify-content:flex-end; margin-top:1.25rem; }
+.pr-toast {
+  position:fixed; bottom:1.5rem; right:1.5rem; z-index:2000;
+  background:var(--surface-1); border:1px solid var(--border); border-radius:10px;
+  padding:0.75rem 1.1rem; font-size:0.82rem; color:var(--text);
+  box-shadow:0 8px 32px rgba(0,0,0,.35); display:none;
+  align-items:center; gap:8px; max-width:320px;
+}
+.pr-toast.show { display:flex; }
+.pr-toast.ok   { border-color:rgba(34,197,94,.4);  }
+.pr-toast.err  { border-color:rgba(239,68,68,.4);  }
+</style>
+
+<div class="pr-root">
+
+  <!-- Header -->
+  <div class="pr-top">
+    <div>
+      <h2 class="pr-heading"><i class="ti ti-shield-check"></i> In-Game Admin Perms</h2>
+      <div class="pr-sub">Manage who has admin access inside the FiveM server</div>
+    </div>
+    <button class="pr-btn" onclick="openGrant()">
+      <i class="ti ti-plus"></i> Grant Perm
+    </button>
+  </div>
+
+  <!-- Stat cards -->
+  <div class="pr-stats" id="statCards">
+    <div class="pr-stat-card"><div class="pr-stat-label">Total Active</div><div class="pr-stat-val" id="statActive">–</div></div>
+    <div class="pr-stat-card"><div class="pr-stat-label">Moderators</div><div class="pr-stat-val" id="statMod">–</div></div>
+    <div class="pr-stat-card"><div class="pr-stat-label">Admins</div><div class="pr-stat-val" id="statAdm">–</div></div>
+    <div class="pr-stat-card"><div class="pr-stat-label">Superadmins</div><div class="pr-stat-val" id="statSup">–</div></div>
+    <div class="pr-stat-card"><div class="pr-stat-label">Owners</div><div class="pr-stat-val" id="statOwn">–</div></div>
+  </div>
+
+  <!-- Controls -->
+  <div class="pr-controls">
+    <input class="pr-search" id="searchInput" placeholder="Search discord ID, name, license…" oninput="debouncedLoad()">
+    <button class="pr-filter-btn active" id="fAll"    onclick="setFilter('all')">All</button>
+    <button class="pr-filter-btn"        id="fActive" onclick="setFilter('active')">Active</button>
+    <button class="pr-filter-btn"        id="fRevoked"onclick="setFilter('revoked')">Revoked</button>
+  </div>
+
+  <!-- Table -->
+  <div class="pr-table-wrap">
+    <table class="pr-table">
+      <thead>
+        <tr>
+          <th>Player</th>
+          <th>Discord ID</th>
+          <th>Level</th>
+          <th>Status</th>
+          <th>Granted</th>
+          <th>Expires</th>
+          <th>By</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="premsBody">
+        <tr><td colspan="8" style="text-align:center;color:var(--text-subtle);padding:2rem;">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  <div id="pagination" style="display:flex;gap:0.5rem;justify-content:center;margin-top:1rem;"></div>
+
+</div>
+
+<!-- ── Grant / Edit Modal ── -->
+<div class="pr-overlay" id="grantOverlay">
+  <div class="pr-modal">
+    <h3 id="modalTitle">Grant In-Game Perm</h3>
+    <input type="hidden" id="editId">
+
+    <div class="pr-form-row">
+      <label>Discord ID <span style="color:#ef4444">*</span></label>
+      <input type="text" id="fDiscordId" placeholder="e.g. 123456789012345678">
+    </div>
+    <div class="pr-form-row">
+      <label>Perm Level <span style="color:#ef4444">*</span></label>
+      <select id="fPermLevel">
+        <option value="moderator">Moderator</option>
+        <option value="admin">Admin</option>
+        <option value="superadmin">Superadmin</option>
+        <option value="owner">Owner</option>
+      </select>
+    </div>
+    <div class="pr-form-row">
+      <label>Player Name <small style="font-weight:400;text-transform:none">(optional, for display)</small></label>
+      <input type="text" id="fPlayerName" placeholder="e.g. JohnDoe">
+    </div>
+    <div class="pr-form-row">
+      <label>License / FiveM Identifier <small style="font-weight:400;text-transform:none">(optional)</small></label>
+      <input type="text" id="fLicenseId" placeholder="e.g. license:abc123 or fivem:99">
+    </div>
+    <div class="pr-form-row">
+      <label>Extra Ace Perms <small style="font-weight:400;text-transform:none">(comma separated, optional)</small></label>
+      <input type="text" id="fCustomPerms" placeholder="e.g. command.noclip, command.freeze">
+    </div>
+    <div class="pr-form-row">
+      <label>Expires in (days) <small style="font-weight:400;text-transform:none">(leave blank = permanent)</small></label>
+      <input type="number" id="fExpires" min="1" placeholder="e.g. 30">
+    </div>
+    <div class="pr-form-row">
+      <label>Staff Note <small style="font-weight:400;text-transform:none">(internal only)</small></label>
+      <textarea id="fNote" rows="2" placeholder="Reason or context…"></textarea>
+    </div>
+
+    <div class="pr-modal-actions">
+      <button class="pr-btn ghost" onclick="closeModal()">Cancel</button>
+      <button class="pr-btn" id="modalSubmitBtn" onclick="submitGrant()">Grant Perm</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Toast ── -->
+<div class="pr-toast" id="toast"></div>
+
+<script>
+var _filter = 'all';
+var _page   = 1;
+var _debounceTimer = null;
+
+function setFilter(f) {
+  _filter = f;
+  _page   = 1;
+  ['all','active','revoked'].forEach(function(k) {
+    document.getElementById('f' + k.charAt(0).toUpperCase() + k.slice(1)).classList.toggle('active', k === f);
+  });
+  loadPrems();
+}
+
+function debouncedLoad() {
+  clearTimeout(_debounceTimer);
+  _debounceTimer = setTimeout(function() { _page = 1; loadPrems(); }, 280);
+}
+
+function loadPrems() {
+  var q      = document.getElementById('searchInput').value;
+  var active = _filter === 'active' ? 'true' : _filter === 'revoked' ? 'false' : '';
+  var url    = '/api/prems/list?page=' + _page + '&per_page=20' + (q ? '&q=' + encodeURIComponent(q) : '') + (active ? '&active=' + active : '');
+
+  fetch(url).then(function(r) { return r.json(); }).then(function(data) {
+    renderTable(data.prems || []);
+    renderPagination(data.page, data.pages);
+    updateStats(data.prems || []);
+  }).catch(function() {
+    document.getElementById('premsBody').innerHTML = '<tr><td colspan="8" style="text-align:center;color:#f87171;padding:1.5rem;">Failed to load</td></tr>';
+  });
+}
+
+function updateStats(rows) {
+  var active = rows.filter(function(r) { return r.is_active && !r.is_expired; });
+  document.getElementById('statActive').textContent = active.length;
+  document.getElementById('statMod').textContent    = active.filter(function(r) { return r.perm_level === 'moderator'; }).length;
+  document.getElementById('statAdm').textContent    = active.filter(function(r) { return r.perm_level === 'admin'; }).length;
+  document.getElementById('statSup').textContent    = active.filter(function(r) { return r.perm_level === 'superadmin'; }).length;
+  document.getElementById('statOwn').textContent    = active.filter(function(r) { return r.perm_level === 'owner'; }).length;
+}
+
+function badgeLevel(lvl) {
+  return '<span class="badge badge-' + lvl + '">' + lvl.charAt(0).toUpperCase() + lvl.slice(1) + '</span>';
+}
+
+function badgeStatus(prem) {
+  if (!prem.is_active) return '<span class="badge badge-revoked">Revoked</span>';
+  if (prem.is_expired) return '<span class="badge badge-expired">Expired</span>';
+  return '<span class="badge badge-active">Active</span>';
+}
+
+function fmtDate(iso) {
+  if (!iso) return '<span style="color:var(--text-subtle)">—</span>';
+  var d = new Date(iso);
+  return d.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
+}
+
+function renderTable(rows) {
+  if (!rows.length) {
+    document.getElementById('premsBody').innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-subtle);padding:2rem;">No records found</td></tr>';
+    return;
+  }
+  var html = '';
+  rows.forEach(function(p) {
+    html += '<tr>' +
+      '<td>' + (p.player_name ? '<strong>' + escHtml(p.player_name) + '</strong>' : '<span style="color:var(--text-subtle)">Unknown</span>') + '</td>' +
+      '<td><span class="mono">' + escHtml(p.discord_id) + '</span></td>' +
+      '<td>' + badgeLevel(p.perm_level) + '</td>' +
+      '<td>' + badgeStatus(p) + '</td>' +
+      '<td style="white-space:nowrap">' + fmtDate(p.granted_at) + '</td>' +
+      '<td style="white-space:nowrap">' + (p.expires_at ? fmtDate(p.expires_at) : '<span style="color:var(--text-subtle)">Permanent</span>') + '</td>' +
+      '<td style="color:var(--text-subtle)">' + escHtml(p.granted_by || '—') + '</td>' +
+      '<td style="text-align:right;white-space:nowrap">' +
+        '<button class="pr-btn ghost" style="padding:3px 9px;font-size:0.72rem;" onclick=\'openEdit(' + JSON.stringify(p) + ')\'>Edit</button> ' +
+        (p.is_active ? '<button class="pr-btn danger" style="padding:3px 9px;font-size:0.72rem;" onclick="revokePrem(' + p.id + ')">Revoke</button>' : '') +
+      '</td>' +
+    '</tr>';
+  });
+  document.getElementById('premsBody').innerHTML = html;
+}
+
+function renderPagination(current, total) {
+  var el = document.getElementById('pagination');
+  if (total <= 1) { el.innerHTML = ''; return; }
+  var html = '';
+  for (var i = 1; i <= total; i++) {
+    html += '<button class="pr-filter-btn' + (i === current ? ' active' : '') + '" onclick="goPage(' + i + ')">' + i + '</button>';
+  }
+  el.innerHTML = html;
+}
+
+function goPage(p) { _page = p; loadPrems(); }
+
+function openGrant() {
+  document.getElementById('modalTitle').textContent    = 'Grant In-Game Perm';
+  document.getElementById('modalSubmitBtn').textContent = 'Grant Perm';
+  document.getElementById('editId').value    = '';
+  document.getElementById('fDiscordId').value   = '';
+  document.getElementById('fDiscordId').disabled  = false;
+  document.getElementById('fPermLevel').value   = 'moderator';
+  document.getElementById('fPlayerName').value  = '';
+  document.getElementById('fLicenseId').value   = '';
+  document.getElementById('fCustomPerms').value = '';
+  document.getElementById('fExpires').value     = '';
+  document.getElementById('fNote').value        = '';
+  document.getElementById('grantOverlay').classList.add('open');
+}
+
+function openEdit(p) {
+  document.getElementById('modalTitle').textContent    = 'Edit Perm — ' + (p.player_name || p.discord_id);
+  document.getElementById('modalSubmitBtn').textContent = 'Save Changes';
+  document.getElementById('editId').value    = p.id;
+  document.getElementById('fDiscordId').value   = p.discord_id;
+  document.getElementById('fDiscordId').disabled  = true;
+  document.getElementById('fPermLevel').value   = p.perm_level;
+  document.getElementById('fPlayerName').value  = p.player_name || '';
+  document.getElementById('fLicenseId').value   = p.license_id  || '';
+  document.getElementById('fCustomPerms').value = (p.custom_perms || []).join(', ');
+  document.getElementById('fExpires').value     = '';
+  document.getElementById('fNote').value        = p.note || '';
+  document.getElementById('grantOverlay').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('grantOverlay').classList.remove('open');
+}
+
+function submitGrant() {
+  var editId = document.getElementById('editId').value;
+  var isEdit = !!editId;
+
+  var customPermsRaw = document.getElementById('fCustomPerms').value;
+  var customPerms = customPermsRaw.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+
+  var body = {
+    perm_level:   document.getElementById('fPermLevel').value,
+    player_name:  document.getElementById('fPlayerName').value.trim(),
+    license_id:   document.getElementById('fLicenseId').value.trim(),
+    custom_perms: customPerms,
+    note:         document.getElementById('fNote').value.trim(),
+  };
+
+  var expiresVal = document.getElementById('fExpires').value;
+  if (expiresVal) body.expires_in_days = parseInt(expiresVal, 10);
+
+  if (!isEdit) {
+    body.discord_id = document.getElementById('fDiscordId').value.trim();
+    if (!body.discord_id) { showToast('Discord ID is required', 'err'); return; }
+  }
+
+  var url    = isEdit ? '/api/prems/update/' + editId : '/api/prems/grant';
+  var method = 'POST';
+
+  fetch(url, { method: method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.success) {
+        closeModal();
+        showToast(isEdit ? 'Perm updated' : 'Perm granted', 'ok');
+        loadPrems();
+      } else {
+        showToast(d.error || 'Error', 'err');
+      }
+    }).catch(function() { showToast('Network error', 'err'); });
+}
+
+function revokePrem(id) {
+  if (!confirm('Revoke this perm? The player will lose in-game admin access.')) return;
+  fetch('/api/prems/revoke/' + id, { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.success) { showToast('Perm revoked', 'ok'); loadPrems(); }
+      else showToast(d.error || 'Error', 'err');
+    }).catch(function() { showToast('Network error', 'err'); });
+}
+
+function showToast(msg, type) {
+  var el = document.getElementById('toast');
+  var icon = type === 'ok' ? '✓' : '✕';
+  el.innerHTML = '<span style="font-size:1rem;">' + icon + '</span> ' + escHtml(msg);
+  el.className = 'pr-toast show ' + (type || '');
+  setTimeout(function() { el.classList.remove('show'); }, 3000);
+}
+
+function escHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// Close modal on overlay click
+document.getElementById('grantOverlay').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+loadPrems();
+</script>
+
+{% endblock %}

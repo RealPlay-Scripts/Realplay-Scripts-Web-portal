@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+{% block title %}Submit Report{% endblock %}
+{% block content %}
+<div style="max-width:680px;margin:0 auto;padding:2rem 1.5rem;">
+
+  <div class="page-header" style="margin-bottom:1.5rem;">
+    <a href="{{ url_for('reports.my_reports') }}" style="color:var(--text-muted);font-size:0.8rem;text-decoration:none;display:inline-flex;align-items:center;gap:0.25rem;margin-bottom:0.75rem;">
+      <i class="ti ti-arrow-left"></i> Back to My Reports
+    </a>
+    <h1 class="page-title" style="margin:0;">Submit a Report</h1>
+    <p style="color:var(--text-muted);font-size:0.875rem;margin:0.25rem 0 0;">Report a player or a bug. Our staff will review it shortly.</p>
+  </div>
+
+  <!-- Type selector -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem;" id="type-picker">
+    <button type="button" onclick="selectType('player')"
+      id="btn-player"
+      style="background:var(--surface-2);border:2px solid var(--border);border-radius:10px;padding:1.25rem;cursor:pointer;text-align:left;transition:all 0.15s;">
+      <div style="font-size:1.75rem;margin-bottom:0.5rem;">🎮</div>
+      <div style="font-weight:600;color:var(--text);margin-bottom:0.25rem;">Player Report</div>
+      <div style="font-size:0.8rem;color:var(--text-muted);">Report another player for rule-breaking behaviour.</div>
+    </button>
+    <button type="button" onclick="selectType('bug')"
+      id="btn-bug"
+      style="background:var(--surface-2);border:2px solid var(--border);border-radius:10px;padding:1.25rem;cursor:pointer;text-align:left;transition:all 0.15s;">
+      <div style="font-size:1.75rem;margin-bottom:0.5rem;">🐛</div>
+      <div style="font-weight:600;color:var(--text);margin-bottom:0.25rem;">Bug Report</div>
+      <div style="font-size:0.8rem;color:var(--text-muted);">Report a server bug, glitch, or unexpected behaviour.</div>
+    </button>
+  </div>
+
+  <form method="POST" id="report-form" style="display:none;">
+    <input type="hidden" name="report_type" id="report_type" />
+
+    <div class="card" style="padding:1.5rem;">
+
+      <div style="margin-bottom:1rem;">
+        <label class="form-label">Report Title <span style="color:var(--red);">*</span></label>
+        <input type="text" name="title" class="form-input" required
+               maxlength="200" placeholder="Give your report a short, clear title." />
+      </div>
+
+      <!-- Player-only fields -->
+      <div id="player-fields" style="display:none;">
+        <div style="margin-bottom:1rem;">
+          <label class="form-label">Reported Player <span style="color:var(--red);">*</span></label>
+
+          <!-- Hidden fields submitted with the form -->
+          <input type="hidden" name="reported_player"    id="rp_name" />
+          <input type="hidden" name="reported_discord_id" id="rp_discord_id" />
+
+          <!-- Search box -->
+          <div style="position:relative;">
+            <div style="position:relative;">
+              <i class="ti ti-search" style="position:absolute;left:0.75rem;top:50%;transform:translateY(-50%);color:var(--text-subtle);pointer-events:none;font-size:0.9rem;"></i>
+              <input type="text" id="rp_search" class="form-input" autocomplete="off"
+                     placeholder="Search by Discord username…"
+                     style="padding-left:2.25rem;"
+                     oninput="rpSearch(this.value)" onfocus="rpSearch(this.value)" />
+            </div>
+
+            <!-- Selected user chip -->
+            <div id="rp_selected" style="display:none;margin-top:0.5rem;background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.3);border-radius:8px;padding:0.5rem 0.75rem;display:none;align-items:center;gap:0.625rem;">
+              <img id="rp_sel_av" src="" style="width:28px;height:28px;border-radius:50%;" />
+              <div style="flex:1;min-width:0;">
+                <div id="rp_sel_name" style="font-size:0.85rem;font-weight:600;color:var(--text);"></div>
+                <div id="rp_sel_tag"  style="font-size:0.72rem;color:var(--text-muted);"></div>
+              </div>
+              <button type="button" onclick="rpClear()"
+                      style="background:none;border:none;cursor:pointer;color:var(--text-subtle);padding:0.2rem;line-height:1;">
+                <i class="ti ti-x" style="font-size:0.9rem;"></i>
+              </button>
+            </div>
+
+            <!-- Dropdown results -->
+            <div id="rp_dropdown"
+                 style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;z-index:999;max-height:260px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.35);">
+              <div id="rp_results"></div>
+              <div id="rp_empty"   style="display:none;padding:0.875rem;text-align:center;color:var(--text-muted);font-size:0.82rem;">No members found</div>
+              <div id="rp_loading" style="display:none;padding:0.875rem;text-align:center;color:var(--text-muted);font-size:0.82rem;"><i class="ti ti-loader-2" style="animation:spin 1s linear infinite;"></i> Searching…</div>
+            </div>
+          </div>
+          <div style="font-size:0.72rem;color:var(--text-subtle);margin-top:0.375rem;">Type at least 2 characters to search Discord members in the server.</div>
+        </div>
+
+        <div style="margin-bottom:1rem;">
+          <label class="form-label">Server / Session ID (optional)</label>
+          <input type="text" name="server_id" class="form-input"
+                 maxlength="64" placeholder="e.g. session ID or time of incident" />
+        </div>
+      </div>
+
+      <!-- Bug-only fields -->
+      <div id="bug-fields" style="display:none;">
+        <div style="margin-bottom:1rem;">
+          <label class="form-label">Steps to Reproduce</label>
+          <textarea name="steps_to_reproduce" class="form-input" rows="3"
+                    placeholder="1. Go to…&#10;2. Do X…&#10;3. Bug occurs"></textarea>
+        </div>
+        <div style="margin-bottom:1rem;">
+          <label class="form-label">Expected Behaviour</label>
+          <input type="text" name="expected_behavior" class="form-input"
+                 maxlength="256" placeholder="What should have happened?" />
+        </div>
+      </div>
+
+      <div style="margin-bottom:1.25rem;">
+        <label class="form-label">Description <span style="color:var(--red);">*</span></label>
+        <textarea name="description" class="form-input" rows="5" required
+                  maxlength="4000"
+                  placeholder="Provide as much detail as possible. Include timestamps, evidence links, etc."></textarea>
+      </div>
+
+      <div style="display:flex;gap:0.75rem;justify-content:flex-end;">
+        <a href="{{ url_for('reports.my_reports') }}" class="btn btn-ghost">Cancel</a>
+        <button type="submit" class="btn btn-primary"><i class="ti ti-send"></i> Submit Report</button>
+      </div>
+    </div>
+  </form>
+</div>
+
+<script>
+function selectType(type) {
+  document.getElementById('report_type').value = type;
+  document.getElementById('report-form').style.display = 'block';
+
+  var accent = 'var(--accent)';
+  var border  = 'var(--border)';
+
+  document.getElementById('btn-player').style.borderColor = type === 'player' ? accent : border;
+  document.getElementById('btn-bug').style.borderColor    = type === 'bug'    ? accent : border;
+
+  document.getElementById('player-fields').style.display = type === 'player' ? '' : 'none';
+  document.getElementById('bug-fields').style.display    = type === 'bug'    ? '' : 'none';
+
+  document.getElementById('report-form').scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+// ── Discord member search ──────────────────────────────────────────────────────
+var rpTimer = null;
+var rpSelected = false;
+
+function rpSearch(val) {
+  if (rpSelected) return;
+  clearTimeout(rpTimer);
+
+  var drop = document.getElementById('rp_dropdown');
+  var res  = document.getElementById('rp_results');
+  var emp  = document.getElementById('rp_empty');
+  var load = document.getElementById('rp_loading');
+
+  if (val.length < 2) { drop.style.display = 'none'; return; }
+
+  drop.style.display = 'block';
+  res.innerHTML  = '';
+  emp.style.display  = 'none';
+  load.style.display = 'block';
+
+  rpTimer = setTimeout(function() {
+    fetch('/reports/api/member-search?q=' + encodeURIComponent(val))
+      .then(function(r) { return r.json(); })
+      .then(function(members) {
+        load.style.display = 'none';
+        res.innerHTML = '';
+        if (!members.length) { emp.style.display = 'block'; return; }
+        members.forEach(function(m) {
+          var el = document.createElement('div');
+          el.style.cssText = 'display:flex;align-items:center;gap:0.625rem;padding:0.625rem 0.875rem;cursor:pointer;transition:background 0.1s;';
+          el.innerHTML =
+            '<img src="' + m.avatar_url + '" style="width:32px;height:32px;border-radius:50%;flex-shrink:0;" />' +
+            '<div style="min-width:0;">' +
+              '<div style="font-size:0.85rem;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escHtml(m.name) + '</div>' +
+              '<div style="font-size:0.72rem;color:var(--text-muted);">@' + escHtml(m.username) + '</div>' +
+            '</div>';
+          el.onmouseenter = function() { el.style.background = 'var(--surface-3)'; };
+          el.onmouseleave = function() { el.style.background = ''; };
+          el.onclick = function() { rpSelect(m); };
+          res.appendChild(el);
+        });
+      })
+      .catch(function() { load.style.display = 'none'; emp.style.display = 'block'; });
+  }, 280);
+}
+
+function rpSelect(m) {
+  rpSelected = true;
+  document.getElementById('rp_name').value       = m.display;
+  document.getElementById('rp_discord_id').value = m.id;
+  document.getElementById('rp_search').value     = '';
+  document.getElementById('rp_dropdown').style.display = 'none';
+
+  document.getElementById('rp_sel_av').src        = m.avatar_url;
+  document.getElementById('rp_sel_name').textContent = m.name;
+  document.getElementById('rp_sel_tag').textContent  = '@' + m.username;
+
+  var chip = document.getElementById('rp_selected');
+  chip.style.display = 'flex';
+}
+
+function rpClear() {
+  rpSelected = false;
+  document.getElementById('rp_name').value       = '';
+  document.getElementById('rp_discord_id').value = '';
+  document.getElementById('rp_search').value     = '';
+  document.getElementById('rp_selected').style.display = 'none';
+  document.getElementById('rp_search').focus();
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('#player-fields')) {
+    document.getElementById('rp_dropdown').style.display = 'none';
+  }
+});
+</script>
+
+<style>
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+{% endblock %}

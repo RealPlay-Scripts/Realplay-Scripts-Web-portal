@@ -1,0 +1,376 @@
+{% extends "base.html" %}
+{% block title %}Crash Diagnostics{% endblock %}
+{% block content %}
+<div style="max-width:1400px;margin:0 auto;padding:1.5rem;">
+
+  <!-- Header -->
+  <div class="page-header">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;">
+      <div>
+        <h1 class="page-title">Crash & Timeout Diagnostics</h1>
+        <p style="color:var(--text-muted);font-size:0.875rem;margin-top:0.25rem;">
+          14-day session health · auto-diagnosis · live feed
+          <span id="live-dot" style="display:inline-flex;align-items:center;gap:4px;margin-left:0.5rem;">
+            <span class="live-pulse" style="background:#22c55e;"></span>
+            <span style="color:#22c55e;font-size:0.75rem;font-weight:600;">LIVE</span>
+          </span>
+        </p>
+      </div>
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+        <span id="last-updated-badge" style="font-size:0.72rem;color:var(--text-subtle);align-self:center;"></span>
+        <button class="btn btn-ghost btn-sm" id="diagnose-all-btn" onclick="diagnoseAll()" title="Backfill diagnoses for all existing sessions">
+          <i class="ti ti-brain"></i> Diagnose All
+        </button>
+        <button class="btn btn-ghost btn-sm" onclick="loadCrashData(true)"><i class="ti ti-refresh"></i> Refresh</button>
+        <a href="{{ url_for('analytics.dashboard') }}" class="btn btn-ghost btn-sm"><i class="ti ti-arrow-left"></i> Analytics</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Live alert strip (hidden by default) -->
+  <div id="live-alert" style="display:none;margin-bottom:1rem;padding:0.625rem 1rem;background:#ef444412;border:1px solid #ef444444;border-radius:10px;align-items:center;gap:0.75rem;font-size:0.82rem;">
+    <i class="ti ti-alert-circle" style="color:#ef4444;"></i>
+    <span id="live-alert-text" style="color:#ef4444;font-weight:600;"></span>
+    <button onclick="document.getElementById('live-alert').style.display='none';" style="margin-left:auto;background:none;border:none;color:var(--text-subtle);cursor:pointer;"><i class="ti ti-x"></i></button>
+  </div>
+
+  <!-- Summary stats -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1rem;margin-bottom:1.5rem;" id="crash-stats">
+    <div class="stat-card skeleton" style="height:90px;"></div>
+    <div class="stat-card skeleton" style="height:90px;"></div>
+    <div class="stat-card skeleton" style="height:90px;"></div>
+    <div class="stat-card skeleton" style="height:90px;"></div>
+    <div class="stat-card skeleton" style="height:90px;"></div>
+    <div class="stat-card skeleton" style="height:90px;"></div>
+  </div>
+
+  <!-- Health banner -->
+  <div id="health-banner" class="card" style="margin-bottom:1.5rem;display:flex;align-items:center;gap:1rem;">
+    <div class="skeleton" style="width:100%;height:40px;border-radius:8px;"></div>
+  </div>
+
+  <!-- Trend + Root cause -->
+  <div style="display:grid;grid-template-columns:2fr 1fr;gap:1.5rem;margin-bottom:1.5rem;">
+    <div class="card">
+      <div class="card-title" style="margin-bottom:1rem;">Crash & Timeout Trend (14 Days)</div>
+      <canvas id="crashTrend" height="90"></canvas>
+    </div>
+    <div class="card">
+      <div class="card-title" style="margin-bottom:1rem;">Disconnect Breakdown</div>
+      <canvas id="rootCause"></canvas>
+    </div>
+  </div>
+
+  <!-- Hourly hotspots -->
+  <div class="card" style="margin-bottom:1.5rem;">
+    <div class="card-title" style="margin-bottom:1rem;">Incident Hotspots by Hour of Day</div>
+    <canvas id="hourlyHotspots" height="70"></canvas>
+  </div>
+
+  <!-- Timeout Diagnosis -->
+  <div class="card" style="margin-bottom:1.5rem;border-color:#f59e0b44;background:#f59e0b06;">
+    <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1.25rem;">
+      <div style="width:36px;height:36px;border-radius:10px;background:#f59e0b22;display:flex;align-items:center;justify-content:center;color:#f59e0b;font-size:1.1rem;flex-shrink:0;"><i class="ti ti-clock-x"></i></div>
+      <div>
+        <div style="font-weight:700;font-size:1rem;">Timeout Diagnosis</div>
+        <div style="font-size:0.8rem;color:var(--text-muted);">Detailed analysis of player timeout disconnects</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1.5rem;">
+      <div>
+        <div class="card-title" style="margin-bottom:0.875rem;">Ping at Time of Timeout</div>
+        <div id="timeout-ping-health" style="display:flex;flex-direction:column;gap:0.625rem;"></div>
+      </div>
+      <div>
+        <div class="card-title" style="margin-bottom:0.875rem;">Session Length Before Timeout</div>
+        <div id="timeout-duration" style="display:flex;flex-direction:column;gap:0.625rem;"></div>
+        <div id="timeout-avg-session" style="margin-top:0.75rem;font-size:0.8rem;color:var(--text-muted);"></div>
+      </div>
+      <div>
+        <div class="card-title" style="margin-bottom:0.875rem;">Top Timeout Reason Strings</div>
+        <div id="timeout-reasons" style="display:flex;flex-direction:column;gap:0.375rem;max-height:200px;overflow-y:auto;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Repeat offenders -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:1.5rem;">
+    <div class="card" style="padding:0;overflow:hidden;">
+      <div style="padding:0.875rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:0.5rem;">
+        <span class="card-title">Repeat Timeout Players</span>
+        <span class="badge" style="background:#f59e0b22;color:#f59e0b;border-color:#f59e0b44;font-size:0.6rem;" id="repeat-timeout-count">…</span>
+      </div>
+      <table class="data-table" id="repeat-timeout-table">
+        <thead><tr><th>Player</th><th>Timeouts</th><th>Avg Ping</th><th>Avg Session</th><th></th></tr></thead>
+        <tbody><tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--text-subtle);">Loading…</td></tr></tbody>
+      </table>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden;">
+      <div style="padding:0.875rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:0.5rem;">
+        <span class="card-title">Repeat Crash Players</span>
+        <span class="badge badge-red" style="font-size:0.6rem;" id="repeat-crash-count">…</span>
+      </div>
+      <table class="data-table" id="repeat-crash-table">
+        <thead><tr><th>Player</th><th>Crashes</th><th>Avg Ping</th><th>Avg Session</th><th></th></tr></thead>
+        <tbody><tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--text-subtle);">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Classified disconnect reasons -->
+  <div class="card" style="margin-bottom:1.5rem;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+      <div class="card-title">Disconnect Reason Analysis</div>
+      <span style="font-size:0.75rem;color:var(--text-subtle);">Click any row to expand fix steps</span>
+    </div>
+    <div id="classified-reasons"><p style="color:var(--text-subtle);font-size:0.85rem;text-align:center;padding:1rem;">Loading…</p></div>
+  </div>
+
+  <!-- Suggestions -->
+  <div class="card" style="margin-bottom:1.5rem;">
+    <div class="card-title" style="margin-bottom:1rem;">Prioritised Server-Wide Recommendations</div>
+    <div id="suggestions"></div>
+  </div>
+
+  <!-- Live incident log -->
+  <div class="card" style="padding:0;overflow:hidden;">
+    <div style="padding:0.875rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;">
+      <div style="display:flex;align-items:center;gap:0.625rem;">
+        <span class="card-title">Recent Crash / Timeout Log</span>
+        <span class="live-pulse" style="background:#22c55e;" title="Auto-refreshing every 15s"></span>
+      </div>
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+        <button class="btn btn-ghost btn-sm incident-filter active" data-cat="">All</button>
+        <button class="btn btn-ghost btn-sm incident-filter" data-cat="crash" style="color:#ef4444;">Crashes</button>
+        <button class="btn btn-ghost btn-sm incident-filter" data-cat="timeout" style="color:#f59e0b;">Timeouts</button>
+      </div>
+    </div>
+    <div class="scroll-x">
+      <table class="data-table" id="incidents-table">
+        <thead><tr><th>Player</th><th>Type</th><th>Auto-Diagnosis</th><th>Ping</th><th>Session Length</th><th>Time</th><th>Actions</th></tr></thead>
+        <tbody id="incidents-body">
+          <tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-subtle);">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- VIEW USER CRASH MODAL -->
+<div id="user-crash-modal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.75);backdrop-filter:blur(4px);overflow-y:auto;">
+  <div style="max-width:800px;margin:2rem auto;padding:1rem;">
+    <div class="card" style="position:relative;">
+      <button onclick="closeUserModal()" style="position:absolute;top:1rem;right:1rem;background:none;border:none;color:var(--text-subtle);cursor:pointer;font-size:1.25rem;z-index:1;"><i class="ti ti-x"></i></button>
+      <div id="modal-loading" style="text-align:center;padding:3rem;color:var(--text-subtle);">
+        <i class="ti ti-loader-2" style="font-size:2rem;display:block;margin:0 auto 0.5rem;animation:spin 1s linear infinite;"></i>
+        Loading player diagnostics…
+      </div>
+      <div id="modal-content" style="display:none;">
+        <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1.25rem;padding-right:2rem;">
+          <div style="width:40px;height:40px;border-radius:10px;background:#ef444422;display:flex;align-items:center;justify-content:center;color:#ef4444;font-size:1.2rem;flex-shrink:0;">
+            <i class="ti ti-user-exclamation"></i>
+          </div>
+          <div>
+            <div id="modal-player-name" style="font-size:1.1rem;font-weight:700;"></div>
+            <div id="modal-discord-id" style="font-size:0.72rem;font-family:'JetBrains Mono',monospace;color:var(--text-subtle);"></div>
+          </div>
+          <div style="margin-left:auto;display:flex;gap:0.5rem;flex-wrap:wrap;" id="modal-summary-badges"></div>
+        </div>
+        <div id="modal-stats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.75rem;margin-bottom:1.25rem;"></div>
+        <div id="modal-top-issue" style="margin-bottom:1.25rem;"></div>
+        <div style="font-weight:700;font-size:0.8rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-subtle);margin-bottom:0.75rem;">Incident History (Last 30 days)</div>
+        <div id="modal-timeline" style="display:flex;flex-direction:column;gap:0.5rem;max-height:440px;overflow-y:auto;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.incident-filter.active{background:var(--surface-3);color:var(--text-primary);}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+.new-incident-row{animation:flash-row 1.8s ease;}
+@keyframes flash-row{0%,100%{background:transparent}30%{background:rgba(239,68,68,0.1)}}
+.diag-tag{display:inline-block;font-size:0.6rem;padding:1px 6px;border-radius:4px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;}
+</style>
+
+<script>
+var _allIncidents=[],_liveData={},_liveTimer=null;
+var _crashTrendChart=null,_rootCauseChart=null,_hourlyChart=null;
+var _prevTotal=-1,_currentFilter='';
+var CAT_COLORS={crash:'#ef4444',timeout:'#f59e0b',connection:'#f97316'};
+
+function bar(val,total,color,label){
+  var pct=total>0?Math.round(val/total*100):0;
+  return '<div style="display:flex;justify-content:space-between;margin-bottom:0.2rem;font-size:0.78rem;"><span style="color:var(--text-muted);">'+label+'</span><span style="font-family:\'JetBrains Mono\',monospace;color:'+color+';">'+val+' <span style="color:var(--text-subtle);font-size:0.7rem;">('+pct+'%)</span></span></div><div class="progress-bar" style="margin-bottom:0.5rem;"><div class="progress-fill" style="width:'+pct+'%;background:'+color+';transition:width 0.5s ease;"></div></div>';
+}
+function fmtDuration(s){if(!s||s<=0)return'0m';var d=Math.floor(s/86400),h=Math.floor((s%86400)/3600),m=Math.floor((s%3600)/60),p=[];if(d)p.push(d+'d');if(h)p.push(h+'h');if(m)p.push(m+'m');return p.length?p.join(' '):'0m';}
+
+function renderIncidents(cat,animate){
+  var rows=cat?_allIncidents.filter(function(i){return i.category===cat;}):_allIncidents;
+  var tbody=document.getElementById('incidents-body');
+  if(!rows.length){tbody.innerHTML='<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-subtle);">No incidents found</td></tr>';return;}
+  tbody.innerHTML=rows.map(function(i,idx){
+    var c=CAT_COLORS[i.category]||'#6b7280';
+    var short=i.duration_seconds>0&&i.duration_seconds<120;
+    var diagLabel=i.diagnosis_label||'';
+    var diagColor=i.category==='crash'?'#ef4444':'#f59e0b';
+    return '<tr class="'+(animate&&idx<3?'new-incident-row':'')+'">' +
+      '<td><div style="font-weight:600;font-size:0.85rem;">'+i.player+'</div><div style="font-size:0.7rem;font-family:\'JetBrains Mono\',monospace;color:var(--text-subtle);">'+i.discord_id+'</div></td>' +
+      '<td><span class="badge" style="background:'+c+'22;color:'+c+';border-color:'+c+'44;font-size:0.65rem;">'+i.category.toUpperCase()+'</span></td>' +
+      '<td style="max-width:220px;">'+(diagLabel?'<span class="diag-tag" style="background:'+diagColor+'15;color:'+diagColor+';">'+diagLabel+'</span>':'')+
+        '<div style="font-size:0.72rem;color:var(--text-subtle);margin-top:2px;">'+(i.reason?i.reason.substring(0,55)+(i.reason.length>55?'…':''):'<span style="opacity:0.4;">—</span>')+'</div></td>' +
+      '<td style="font-family:\'JetBrains Mono\',monospace;font-size:0.8rem;'+(i.ping>200?'color:#ef4444;':'')+'">'+(i.ping>0?i.ping+'ms':'—')+'</td>' +
+      '<td style="font-size:0.8rem;'+(short?'color:#f97316;font-weight:600;':'')+'">'+fmtDuration(i.duration_seconds)+(short?' ⚡':'')+'</td>' +
+      '<td style="color:var(--text-subtle);font-size:0.78rem;white-space:nowrap;">'+i.time+'</td>' +
+      '<td><button class="btn btn-ghost btn-sm" style="font-size:0.65rem;padding:2px 8px;" onclick="viewUser(\''+i.discord_id+'\',\''+i.player.replace(/\'/g,"\\'")+'\')" ><i class="ti ti-user-search"></i> View</button></td>' +
+    '</tr>';
+  }).join('');
+}
+
+async function loadCrashData(forceRefresh){
+  var d;try{d=await fetch('/analytics/data/crash-summary').then(function(r){return r.json();});}catch(e){return;}
+  
+  document.getElementById('crash-stats').innerHTML=[
+    ['Crashes (7d)',d.crashes_7d,'ti-alert-circle','#ef4444',''],
+    ['Timeouts (7d)',d.timeouts_7d,'ti-clock-x','#f59e0b',''],
+    ['Net Drops (7d)',d.network_drops_7d,'ti-wifi-off','#f97316',''],
+    ['Avg Ping @Crash',d.avg_ping_at_crash+'ms','ti-signal','#6366f1',''],
+    ['Total Incidents',d.total_incidents,'ti-exclamation-circle','#8b5cf6',''],
+    ['Last Hour','—','ti-clock','#22c55e','live-stat-hr'],
+  ].map(function(row){
+    return '<div class="stat-card"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:0.5rem;"><div><div class="stat-value" id="'+row[4]+'" style="color:'+row[3]+';font-size:1.5rem;">'+row[1]+'</div><div class="stat-label">'+row[0]+'</div></div><div style="width:36px;height:36px;border-radius:10px;background:'+row[3]+'22;display:flex;align-items:center;justify-content:center;color:'+row[3]+';font-size:1.1rem;flex-shrink:0;"><i class="ti '+row[2]+'"></i></div></div></div>';
+  }).join('');
+
+  var hColors={good:'#22c55e',warning:'#f59e0b',critical:'#ef4444'};
+  var hIcons={good:'ti-heart-check',warning:'ti-alert-triangle',critical:'ti-heart-broken'};
+  var hLabels={good:'Server health is good',warning:'Server health needs attention',critical:'Critical server issues detected'};
+  var hc=hColors[d.server_health]||'#6b7280';
+  var banner=document.getElementById('health-banner');
+  banner.innerHTML='<div style="width:48px;height:48px;border-radius:12px;background:'+hc+'22;display:flex;align-items:center;justify-content:center;color:'+hc+';font-size:1.5rem;flex-shrink:0;"><i class="ti '+(hIcons[d.server_health]||'ti-help')+'"></i></div><div><div style="font-weight:700;color:'+hc+';">'+(hLabels[d.server_health]||'Unknown')+'</div><div style="font-size:0.85rem;color:var(--text-muted);">'+d.total_incidents+' total incidents in last 7 days</div></div>';
+  banner.style.borderColor=hc+'44';banner.style.background=hc+'08';
+
+  if(_crashTrendChart){_crashTrendChart.destroy();_crashTrendChart=null;}
+  _crashTrendChart=new Chart(document.getElementById('crashTrend'),{type:'bar',data:{labels:d.daily_trend.map(function(x){return x.day;}),datasets:[{label:'Crashes',data:d.daily_trend.map(function(x){return x.crashes;}),backgroundColor:'#ef444477',borderColor:'#ef4444',borderWidth:1.5,borderRadius:3},{label:'Timeouts',data:d.daily_trend.map(function(x){return x.timeouts;}),backgroundColor:'#f59e0b77',borderColor:'#f59e0b',borderWidth:1.5,borderRadius:3}]},options:{responsive:true,plugins:{legend:{position:'top'}},scales:{x:{grid:{display:false}},y:{beginAtZero:true,grid:{color:'rgba(99,102,241,0.08)'}}}}});
+
+  var rc=['#ef4444','#f59e0b','#f97316','#22c55e','#6366f1','#8b5cf6'];
+  if(_rootCauseChart){_rootCauseChart.destroy();_rootCauseChart=null;}
+  _rootCauseChart=new Chart(document.getElementById('rootCause'),{type:'doughnut',data:{labels:d.root_causes.map(function(r){return r.category;}),datasets:[{data:d.root_causes.map(function(r){return r.count;}),backgroundColor:rc.map(function(c){return c+'88';}),borderColor:rc,borderWidth:2}]},options:{responsive:true,plugins:{legend:{position:'bottom'}}}});
+
+  if(_hourlyChart){_hourlyChart.destroy();_hourlyChart=null;}
+  _hourlyChart=new Chart(document.getElementById('hourlyHotspots'),{type:'bar',data:{labels:Array.from({length:24},function(_,i){return i+':00';}),datasets:[{label:'Crashes',data:d.hourly_crashes,backgroundColor:'#ef444566',borderColor:'#ef4444',borderWidth:1,borderRadius:3},{label:'Timeouts',data:d.hourly_timeouts,backgroundColor:'#f59e0b66',borderColor:'#f59e0b',borderWidth:1,borderRadius:3}]},options:{responsive:true,plugins:{legend:{position:'top'}},scales:{x:{grid:{display:false},stacked:true,ticks:{maxTicksLimit:12}},y:{beginAtZero:true,stacked:true,grid:{color:'rgba(99,102,241,0.08)'}}}}});
+
+  var ph=d.ping_health,phT=ph.good+ph.fair+ph.poor+ph.critical||1;
+  document.getElementById('timeout-ping-health').innerHTML=bar(ph.good,phT,'#22c55e','Good (<80ms)')+bar(ph.fair,phT,'#f59e0b','Fair (80–150ms)')+bar(ph.poor,phT,'#f97316','Poor (150–300ms)')+bar(ph.critical,phT,'#ef4444','Critical (>300ms)');
+  var td=d.timeout_duration,tdT=td.short+td.medium+td.long||1;
+  document.getElementById('timeout-duration').innerHTML=bar(td.short,tdT,'#ef4444','< 5 min (load/init)')+bar(td.medium,tdT,'#f59e0b','5 – 30 min')+bar(td.long,tdT,'#22c55e','> 30 min');
+  document.getElementById('timeout-avg-session').textContent='Avg session before timeout: '+(td.avg_seconds>0?Math.floor(td.avg_seconds/60)+'m '+(td.avg_seconds%60)+'s':'N/A');
+
+  var rEl=document.getElementById('timeout-reasons');
+  if(!d.timeout_reasons.length){rEl.innerHTML='<span style="color:var(--text-subtle);font-size:0.8rem;">No reason strings recorded</span>';}
+  else{var mx=d.timeout_reasons[0].count||1;rEl.innerHTML=d.timeout_reasons.map(function(r){return'<div style="background:var(--surface-3);border-radius:6px;padding:0.375rem 0.625rem;"><div style="display:flex;justify-content:space-between;margin-bottom:0.2rem;"><span style="font-size:0.72rem;color:var(--text-muted);word-break:break-all;">'+r.reason+'</span><span class="badge badge-gray" style="font-size:0.6rem;flex-shrink:0;margin-left:0.5rem;">'+r.count+'x</span></div><div style="height:3px;border-radius:2px;background:var(--border);"><div style="height:3px;border-radius:2px;background:#f59e0b;width:'+Math.round(r.count/mx*100)+'%;"></div></div></div>';}).join('');}
+
+  document.getElementById('repeat-timeout-count').textContent=d.repeat_timeout_players.length;
+  var rtt=document.getElementById('repeat-timeout-table').querySelector('tbody');
+  rtt.innerHTML=!d.repeat_timeout_players.length?'<tr><td colspan="5" style="text-align:center;padding:1.5rem;color:var(--text-subtle);">None</td></tr>':d.repeat_timeout_players.map(function(p){var pc=p.avg_ping>200?'#ef4444':p.avg_ping>100?'#f59e0b':'var(--text-muted)';return'<tr><td><div style="font-weight:600;font-size:0.85rem;">'+p.name+'</div><div style="font-size:0.7rem;font-family:\'JetBrains Mono\',monospace;color:var(--text-subtle);">'+p.discord_id+'</div></td><td><span class="badge" style="background:#f59e0b22;color:#f59e0b;border-color:#f59e0b44;">'+p.timeout_count+'</span></td><td style="font-family:\'JetBrains Mono\',monospace;font-size:0.82rem;color:'+pc+';">'+p.avg_ping+'ms</td><td style="font-size:0.8rem;color:var(--text-muted);">'+p.avg_session+'</td><td><button class="btn btn-ghost btn-sm" style="font-size:0.65rem;padding:2px 8px;" onclick="viewUser(\''+p.discord_id+'\',\''+p.name.replace(/\'/g,"\\'")+'\')"><i class="ti ti-user-search"></i></button></td></tr>';}).join('');
+
+  document.getElementById('repeat-crash-count').textContent=d.repeat_crash_players.length;
+  var rct=document.getElementById('repeat-crash-table').querySelector('tbody');
+  rct.innerHTML=!d.repeat_crash_players.length?'<tr><td colspan="5" style="text-align:center;padding:1.5rem;color:var(--text-subtle);">None</td></tr>':d.repeat_crash_players.map(function(p){return'<tr><td><div style="font-weight:600;font-size:0.85rem;">'+p.name+'</div><div style="font-size:0.7rem;font-family:\'JetBrains Mono\',monospace;color:var(--text-subtle);">'+p.discord_id+'</div></td><td><span class="badge badge-red">'+p.crash_count+'</span></td><td style="font-family:\'JetBrains Mono\',monospace;font-size:0.82rem;">'+p.avg_ping+'ms</td><td style="font-size:0.8rem;color:var(--text-muted);">'+p.avg_session+'</td><td><button class="btn btn-ghost btn-sm" style="font-size:0.65rem;padding:2px 8px;" onclick="viewUser(\''+p.discord_id+'\',\''+p.name.replace(/\'/g,"\\'")+'\')"><i class="ti ti-user-search"></i></button></td></tr>';}).join('');
+
+  var cColors={crash:'#ef4444',timeout:'#f59e0b',connection:'#f97316',unknown:'#6b7280'};
+  var kIcons={connection_timeout:'ti-clock-x',flow_control:'ti-arrows-exchange',client_disconnect:'ti-logout',steam_error:'ti-brand-steam',eac_kick:'ti-shield-x',admin_kick:'ti-user-x',player_quit:'ti-door-exit',server_restart:'ti-server',no_license:'ti-id-off',streaming_crash:'ti-photo-off',script_assert:'ti-bug',script_loop:'ti-infinity',oom:'ti-database-off',native_crash:'ti-cpu',unclassified:'ti-help-circle'};
+  var crEl=document.getElementById('classified-reasons');
+  if(!d.classified_reasons||!d.classified_reasons.length){crEl.innerHTML='<p style="color:var(--text-subtle);font-size:0.85rem;text-align:center;padding:1rem;">No disconnect reasons recorded yet.</p>';}
+  else{
+    var mxCR=d.classified_reasons[0].count||1;
+    crEl.innerHTML=d.classified_reasons.map(function(r){
+      var icon=kIcons[r.key]||'ti-help-circle',pct=Math.round(r.count/mxCR*100);
+      var cats=r.categories.map(function(c){var col=cColors[c]||'#6b7280';return'<span class="badge" style="background:'+col+'22;color:'+col+';border-color:'+col+'44;font-size:0.6rem;">'+c+'</span>';}).join(' ');
+      var meta=[r.avg_duration_seconds>0?Math.floor(r.avg_duration_seconds/60)+'m avg session':'',r.avg_ping>0?r.avg_ping+'ms avg ping':''].filter(Boolean).join(' · ');
+      var steps=r.fix_steps.map(function(s){return'<li style="margin-bottom:0.35rem;">'+s+'</li>';}).join('');
+      var examples=r.examples.length?'<div style="margin-top:0.75rem;"><div style="font-size:0.7rem;color:var(--text-subtle);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.375rem;">Example reason strings</div>'+r.examples.map(function(e){return'<code style="display:block;font-size:0.72rem;background:var(--surface-3);border-radius:4px;padding:2px 6px;margin-bottom:3px;word-break:break-all;">'+e+'</code>';}).join('')+'</div>':'';
+      return'<div style="border:1px solid var(--border);border-radius:10px;margin-bottom:0.625rem;overflow:hidden;"><div style="padding:0.75rem 1rem;cursor:pointer;display:flex;align-items:center;gap:0.75rem;" onclick="this.nextElementSibling.classList.toggle(\'hidden\')"><div style="width:32px;height:32px;border-radius:8px;background:var(--surface-3);display:flex;align-items:center;justify-content:center;color:var(--text-muted);flex-shrink:0;font-size:1rem;"><i class="ti '+icon+'"></i></div><div style="flex:1;min-width:0;"><div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.25rem;"><span style="font-weight:600;font-size:0.875rem;">'+r.label+'</span>'+cats+'</div><div style="height:4px;background:var(--border);border-radius:2px;margin-bottom:0.25rem;"><div style="height:4px;background:var(--accent);border-radius:2px;width:'+pct+'%;transition:width 0.6s ease;"></div></div><div style="font-size:0.72rem;color:var(--text-subtle);">'+meta+'</div></div><div style="text-align:right;flex-shrink:0;"><div style="font-size:1.2rem;font-weight:700;font-family:\'JetBrains Mono\',monospace;">'+r.count+'</div><div style="font-size:0.65rem;color:var(--text-subtle);">incidents</div></div><i class="ti ti-chevron-down" style="color:var(--text-subtle);flex-shrink:0;"></i></div><div class="hidden" style="padding:0 1rem 1rem 1rem;border-top:1px solid var(--border);background:var(--surface-3);"><p style="font-size:0.82rem;color:var(--text-muted);margin:0.75rem 0 0.625rem;">'+r.diagnosis+'</p><div style="font-size:0.72rem;color:var(--text-subtle);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.375rem;">Fix Steps</div><ul style="margin:0;padding-left:1.25rem;font-size:0.82rem;color:var(--text-primary);line-height:1.7;">'+steps+'</ul>'+examples+'</div></div>';
+    }).join('');
+  }
+
+  var pc2={high:'#ef4444',medium:'#f59e0b',low:'#6366f1'};
+  document.getElementById('suggestions').innerHTML=!d.suggestions.length?'<p style="color:var(--text-subtle);text-align:center;padding:1rem;">No server-wide issues detected — health looks good!</p>':d.suggestions.map(function(s){var sh=(s.steps||[]).map(function(step,i){return'<li style="margin-bottom:0.4rem;"><span style="color:var(--text-subtle);margin-right:0.375rem;">'+(i+1)+'.</span>'+step+'</li>';}).join('');return'<div style="border:1px solid '+pc2[s.priority]+'33;border-radius:10px;margin-bottom:0.625rem;overflow:hidden;"><div style="padding:0.875rem 1rem;cursor:pointer;display:flex;align-items:center;gap:0.75rem;" onclick="this.nextElementSibling.classList.toggle(\'hidden\')"><span class="badge" style="background:'+pc2[s.priority]+'22;color:'+pc2[s.priority]+';border-color:'+pc2[s.priority]+'44;font-size:0.65rem;flex-shrink:0;">'+s.priority.toUpperCase()+'</span><span style="font-weight:600;font-size:0.875rem;flex:1;">'+s.issue+'</span><span style="font-family:\'JetBrains Mono\',monospace;font-size:0.8rem;color:var(--text-subtle);flex-shrink:0;">'+s.count+'×</span><i class="ti ti-chevron-down" style="color:var(--text-subtle);flex-shrink:0;"></i></div><div class="hidden" style="padding:0 1rem 1rem 1rem;border-top:1px solid var(--border);background:var(--surface-3);"><ul style="margin:0.75rem 0 0;padding-left:1.25rem;font-size:0.82rem;color:var(--text-primary);line-height:1.7;">'+sh+'</ul></div></div>';}).join('');
+
+  _allIncidents=d.recent_incidents;
+  renderIncidents(_currentFilter,false);
+}
+
+async function livePoll(){
+  var d;try{d=await fetch('/analytics/data/crash-live').then(function(r){return r.json();});}catch(e){return;}
+  _liveData=d;
+  var now=new Date(),badge=document.getElementById('last-updated-badge');
+  if(badge)badge.textContent='Updated '+now.toLocaleTimeString();
+  var hrEl=document.getElementById('live-stat-hr');
+  if(hrEl)hrEl.textContent=(d.crashes_1h+d.timeouts_1h)+' /hr';
+  if(_prevTotal>=0&&d.total>_prevTotal){
+    var diff=d.total-_prevTotal,al=document.getElementById('live-alert'),at=document.getElementById('live-alert-text');
+    if(al&&at){at.textContent='+'+diff+' new incident'+(diff>1?'s':'')+' detected';al.style.display='flex';setTimeout(function(){al.style.display='none';},8000);}
+  }
+  _prevTotal=d.total;
+  if(d.recent_incidents&&d.recent_incidents.length){
+    var prev=_allIncidents.length;
+    _allIncidents=d.recent_incidents.map(function(i){return{player:i.player,discord_id:i.discord_id,category:i.category,reason:i.reason,ping:i.ping,duration_seconds:i.duration,time:i.time,time_iso:i.time_iso,diagnosis_label:'',diagnosis_key:''};});
+    renderIncidents(_currentFilter,d.recent_incidents.length>prev);
+  }
+}
+
+async function diagnoseAll(){
+  var btn=document.getElementById('diagnose-all-btn');
+  if(btn){btn.disabled=true;btn.innerHTML='<i class="ti ti-loader-2" style="animation:spin 1s linear infinite;"></i> Diagnosing…';}
+  try{
+    var r=await fetch('/analytics/crashes/diagnose-all',{method:'POST'}).then(function(x){return x.json();});
+    if(btn)btn.innerHTML='<i class="ti ti-check"></i> Done ('+(r.created||0)+' new)';
+  }catch(e){if(btn)btn.innerHTML='<i class="ti ti-brain"></i> Diagnose All';}
+  setTimeout(function(){if(btn){btn.disabled=false;btn.innerHTML='<i class="ti ti-brain"></i> Diagnose All';}},4000);
+}
+
+async function viewUser(discordId,playerName){
+  var modal=document.getElementById('user-crash-modal');
+  var loading=document.getElementById('modal-loading');
+  var content=document.getElementById('modal-content');
+  modal.style.display='block';
+  loading.style.display='block';
+  content.style.display='none';
+  loading.innerHTML='<i class="ti ti-loader-2" style="font-size:2rem;display:block;margin:0 auto 0.5rem;animation:spin 1s linear infinite;"></i>Loading player diagnostics…';
+  var d;
+  try{d=await fetch('/analytics/crashes/user/'+discordId).then(function(r){return r.json();});}
+  catch(e){loading.innerHTML='<p style="color:#ef4444;">Failed to load data.</p>';return;}
+  loading.style.display='none';content.style.display='block';
+  document.getElementById('modal-player-name').textContent=d.player_name||playerName;
+  document.getElementById('modal-discord-id').textContent=d.discord_id;
+  var badges='';
+  if(d.crashes>0)badges+='<span class="badge badge-red" style="font-size:0.7rem;">'+d.crashes+' crash'+(d.crashes>1?'es':'')+'</span>';
+  if(d.timeouts>0)badges+='<span class="badge" style="background:#f59e0b22;color:#f59e0b;border-color:#f59e0b44;font-size:0.7rem;">'+d.timeouts+' timeout'+(d.timeouts>1?'s':'')+'</span>';
+  document.getElementById('modal-summary-badges').innerHTML=badges;
+  document.getElementById('modal-stats').innerHTML=[['Total',d.total,'#8b5cf6'],['Crashes',d.crashes,'#ef4444'],['Timeouts',d.timeouts,'#f59e0b'],['Other',d.other,'#f97316']].map(function(s){return'<div style="background:var(--surface-1);border-radius:8px;padding:0.75rem;text-align:center;border:1px solid var(--border);"><div style="font-size:1.5rem;font-weight:800;font-family:\'JetBrains Mono\',monospace;color:'+s[2]+';">'+s[1]+'</div><div style="font-size:0.65rem;color:var(--text-subtle);text-transform:uppercase;letter-spacing:0.06em;margin-top:2px;">'+s[0]+'</div></div>';}).join('');
+  var tiEl=document.getElementById('modal-top-issue');
+  tiEl.innerHTML=d.top_issue?'<div style="padding:0.625rem 0.875rem;background:#f59e0b12;border:1px solid #f59e0b33;border-radius:8px;font-size:0.82rem;"><span style="color:#f59e0b;font-weight:700;"><i class="ti ti-flame"></i> Most common issue:</span> <strong>'+d.top_issue.key.replace(/_/g,' ')+'</strong> ('+d.top_issue.count+' times)</div>':'';
+  var tl=document.getElementById('modal-timeline');
+  if(!d.diagnoses||!d.diagnoses.length){tl.innerHTML='<p style="color:var(--text-subtle);text-align:center;padding:1rem;font-size:0.82rem;">No incidents recorded in the last 30 days.</p>';}
+  else{
+    tl.innerHTML=d.diagnoses.map(function(diag){
+      var c=CAT_COLORS[diag.category]||'#6b7280';
+      var ping=diag.ping_at_crash>0?diag.ping_at_crash+'ms ping':'';
+      var sess=diag.session_seconds>0?fmtDuration(diag.session_seconds)+' session':'';
+      var meta=[ping,sess].filter(Boolean).join(' · ');
+      var steps=(diag.fix_steps||[]).map(function(s){return'<li style="margin-bottom:0.25rem;">'+s+'</li>';}).join('');
+      var det=diag.detected_at?new Date(diag.detected_at).toLocaleString():'';
+      return'<div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;"><div style="padding:0.625rem 0.875rem;display:flex;align-items:flex-start;gap:0.625rem;cursor:pointer;" onclick="this.nextElementSibling.classList.toggle(\'hidden\')"><span class="badge" style="background:'+c+'22;color:'+c+';border-color:'+c+'44;font-size:0.6rem;flex-shrink:0;">'+(diag.category||'?').toUpperCase()+'</span><div style="flex:1;min-width:0;"><div style="font-weight:600;font-size:0.82rem;">'+(diag.diagnosis_label||'Unknown')+'</div><div style="font-size:0.72rem;color:var(--text-subtle);margin-top:2px;">'+meta+'</div></div><div style="font-size:0.72rem;color:var(--text-subtle);white-space:nowrap;flex-shrink:0;">'+det+'</div><i class="ti ti-chevron-down" style="color:var(--text-subtle);flex-shrink:0;font-size:0.8rem;"></i></div><div class="hidden" style="padding:0 0.875rem 0.875rem;border-top:1px solid var(--border);background:var(--surface-3);"><p style="font-size:0.78rem;color:var(--text-muted);margin:0.625rem 0 0.5rem;">'+(diag.diagnosis_text||'')+'</p>'+(diag.reason_raw?'<code style="display:block;font-size:0.7rem;background:var(--surface-2);border-radius:4px;padding:3px 8px;margin-bottom:0.5rem;word-break:break-all;">'+diag.reason_raw+'</code>':'')+(steps?'<ul style="margin:0;padding-left:1.1rem;font-size:0.78rem;color:var(--text-primary);line-height:1.7;">'+steps+'</ul>':'')+'</div></div>';
+    }).join('');
+  }
+}
+
+function closeUserModal(){document.getElementById('user-crash-modal').style.display='none';}
+document.getElementById('user-crash-modal').addEventListener('click',function(e){if(e.target===this)closeUserModal();});
+document.querySelectorAll('.incident-filter').forEach(function(btn){btn.addEventListener('click',function(){document.querySelectorAll('.incident-filter').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');_currentFilter=btn.dataset.cat;renderIncidents(_currentFilter,false);});});
+
+loadCrashData(false);
+_liveTimer=setInterval(livePoll,15000);
+livePoll();
+</script>
+{% endblock %}

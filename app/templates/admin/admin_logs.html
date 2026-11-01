@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Logs — GSRP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:         #07080d;
+  --surface:    #0d0f18;
+  --surface2:   #11141f;
+  --border:     #1c1f2e;
+  --border2:    #252840;
+  --text:       #c8cfe8;
+  --muted:      #555e80;
+  --accent:     #4f7aff;
+  --accent-dim: #1a2650;
+  --success:    #29d68b;
+  --warn:       #f0a500;
+  --danger:     #e84040;
+  --purple:     #9b6dff;
+  --cyan:       #00c9d4;
+  --mono:       'Space Mono', monospace;
+  --sans:       'Syne', sans-serif;
+}
+
+html, body {
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 15px;
+}
+
+/* ── Background grid ── */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image:
+    linear-gradient(rgba(79,122,255,.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(79,122,255,.025) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Layout ── */
+.page { position: relative; z-index: 1; max-width: 1400px; margin: 0 auto; padding: 32px 24px; }
+
+/* ── Header ── */
+.page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 32px;
+  flex-wrap: wrap;
+}
+.page-title { display: flex; align-items: center; gap: 14px; }
+.page-title .icon {
+  width: 42px; height: 42px;
+  background: var(--accent-dim);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  display: grid; place-items: center;
+  font-size: 18px;
+}
+.page-title h1 { font-size: 26px; font-weight: 800; letter-spacing: -.5px; }
+.page-title span { font-size: 13px; color: var(--muted); font-weight: 400; font-family: var(--mono); display: block; margin-top: 2px; }
+
+.live-badge {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 12px;
+  background: rgba(41,214,139,.1);
+  border: 1px solid rgba(41,214,139,.3);
+  border-radius: 20px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--success);
+  letter-spacing: .5px;
+}
+.live-badge::before {
+  content: '';
+  width: 7px; height: 7px;
+  background: var(--success);
+  border-radius: 50%;
+  animation: pulse 1.8s infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(.8)} }
+
+/* ── Stat cards ── */
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+  margin-bottom: 28px;
+}
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px 20px;
+  position: relative;
+  overflow: hidden;
+  transition: border-color .2s;
+}
+.stat-card:hover { border-color: var(--border2); }
+.stat-card::after {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0;
+  height: 2px;
+  border-radius: 10px 10px 0 0;
+}
+.stat-card.blue::after  { background: var(--accent); }
+.stat-card.green::after { background: var(--success); }
+.stat-card.red::after   { background: var(--danger); }
+.stat-card.purple::after{ background: var(--purple); }
+.stat-card.yellow::after{ background: var(--warn); }
+
+.stat-label { font-size: 11px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; font-family: var(--mono); margin-bottom: 8px; }
+.stat-value { font-size: 28px; font-weight: 800; font-family: var(--mono); }
+.stat-card.blue   .stat-value { color: var(--accent); }
+.stat-card.green  .stat-value { color: var(--success); }
+.stat-card.red    .stat-value { color: var(--danger); }
+.stat-card.purple .stat-value { color: var(--purple); }
+.stat-card.yellow .stat-value { color: var(--warn); }
+.stat-sub { font-size: 11px; color: var(--muted); margin-top: 4px; font-family: var(--mono); }
+
+/* ── Filters ── */
+.filters-bar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+.search-wrap {
+  position: relative;
+  flex: 1; min-width: 200px;
+}
+.search-wrap svg {
+  position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+  color: var(--muted); pointer-events: none;
+}
+input[type="text"], select {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 13px;
+  padding: 9px 12px;
+  outline: none;
+  transition: border-color .2s;
+  appearance: none;
+}
+input[type="text"] { padding-left: 36px; width: 100%; }
+input[type="text"]:focus, select:focus { border-color: var(--accent); }
+select { cursor: pointer; min-width: 140px; }
+select option { background: #0d0f18; }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+.btn.primary { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+.btn.primary:hover { background: rgba(79,122,255,.25); }
+
+/* ── Table ── */
+.table-wrap {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+thead tr {
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+}
+th {
+  padding: 12px 16px;
+  text-align: left;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 400;
+  white-space: nowrap;
+}
+tbody tr {
+  border-bottom: 1px solid rgba(28,31,46,.7);
+  transition: background .12s;
+  cursor: pointer;
+}
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: rgba(79,122,255,.04); }
+td {
+  padding: 13px 16px;
+  font-size: 13px;
+  vertical-align: middle;
+}
+.td-id { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.td-time { font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap; }
+
+/* ── Category badges ── */
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.badge-moderation { background: rgba(232,64,64,.15);  border: 1px solid rgba(232,64,64,.4);  color: var(--danger); }
+.badge-teleport   { background: rgba(79,122,255,.15); border: 1px solid rgba(79,122,255,.4); color: var(--accent); }
+.badge-spectate   { background: rgba(155,109,255,.15);border: 1px solid rgba(155,109,255,.4);color: var(--purple);}
+.badge-spawn      { background: rgba(41,214,139,.12); border: 1px solid rgba(41,214,139,.4); color: var(--success);}
+.badge-other      { background: rgba(240,165,0,.12);  border: 1px solid rgba(240,165,0,.35); color: var(--warn);  }
+.badge-dev        { background: rgba(0,201,212,.12);  border: 1px solid rgba(0,201,212,.35); color: var(--cyan);  }
+
+.player-cell { display: flex; align-items: center; gap: 8px; }
+.player-avatar {
+  width: 28px; height: 28px;
+  border-radius: 7px;
+  background: var(--accent-dim);
+  border: 1px solid var(--border2);
+  display: grid; place-items: center;
+  font-size: 11px; font-weight: 700;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.player-name { font-weight: 600; font-size: 13px; }
+.player-disc { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+
+.cmd-cell { font-family: var(--mono); font-size: 12px; }
+.cmd-cell .cmd-name { color: var(--accent); font-weight: 700; }
+.cmd-cell .cmd-label { color: var(--muted); font-size: 10px; display: block; margin-top: 1px; }
+
+.reason-cell { max-width: 200px; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── Empty state ── */
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--muted);
+}
+.empty-state .empty-icon { font-size: 40px; margin-bottom: 12px; opacity: .4; }
+.empty-state p { font-size: 14px; }
+
+/* ── Pagination ── */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-top: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.page-btns { display: flex; gap: 6px; }
+.page-btn {
+  width: 32px; height: 32px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  cursor: pointer;
+  display: grid; place-items: center;
+  transition: all .15s;
+}
+.page-btn:hover { border-color: var(--accent); color: var(--accent); }
+.page-btn.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+.page-btn:disabled { opacity: .3; cursor: not-allowed; }
+
+/* ── Detail modal ── */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.7);
+  backdrop-filter: blur(6px);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000;
+  opacity: 0; pointer-events: none;
+  transition: opacity .2s;
+}
+.modal-overlay.open { opacity: 1; pointer-events: all; }
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: 14px;
+  width: 90%; max-width: 640px;
+  max-height: 85vh;
+  overflow-y: auto;
+  transform: translateY(12px) scale(.98);
+  transition: transform .25s cubic-bezier(.34,1.56,.64,1);
+  box-shadow: 0 40px 80px rgba(0,0,0,.6), 0 0 0 1px rgba(79,122,255,.1);
+}
+.modal-overlay.open .modal { transform: none; }
+.modal-header {
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px;
+  position: sticky; top: 0; background: var(--surface); z-index: 1;
+}
+.modal-title { font-size: 16px; font-weight: 700; }
+.modal-id { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 2px; }
+.modal-close {
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  display: grid; place-items: center;
+  transition: all .15s;
+  font-size: 18px; line-height: 1;
+}
+.modal-close:hover { border-color: var(--danger); color: var(--danger); }
+.modal-body { padding: 24px; }
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.detail-block {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+.detail-block.full { grid-column: 1 / -1; }
+.detail-block-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+.detail-row { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 6px; font-size: 12px; }
+.detail-row:last-child { margin-bottom: 0; }
+.detail-key { color: var(--muted); flex-shrink: 0; }
+.detail-val { font-family: var(--mono); font-size: 11px; text-align: right; word-break: break-all; }
+.detail-val.accent { color: var(--accent); }
+.detail-val.success { color: var(--success); }
+.detail-val.danger  { color: var(--danger); }
+.detail-val.cyan    { color: var(--cyan); }
+
+.reason-box {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 0;
+}
+
+/* ── Loading spinner ── */
+.spinner {
+  display: inline-block;
+  width: 18px; height: 18px;
+  border: 2px solid var(--border2);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+  vertical-align: middle;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.loading-row td { text-align: center; padding: 40px; color: var(--muted); }
+
+/* ── Toast ── */
+.toast {
+  position: fixed; bottom: 24px; right: 24px;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 10px;
+  padding: 12px 18px;
+  font-family: var(--mono);
+  font-size: 12px;
+  z-index: 9999;
+  transform: translateY(20px);
+  opacity: 0;
+  transition: all .25s;
+  pointer-events: none;
+}
+.toast.show { transform: none; opacity: 1; }
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .stats-row { grid-template-columns: repeat(2, 1fr); }
+  .hide-mobile { display: none; }
+  .detail-grid { grid-template-columns: 1fr; }
+  .detail-block.full { grid-column: 1; }
+}
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <!-- Header -->
+  <div class="page-header">
+    <div class="page-title">
+      <div class="icon">🛡</div>
+      <div>
+        <h1>Admin Logs</h1>
+        <span id="subtitleText">Loading reports...</span>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+      <div class="live-badge" id="liveStatus">LIVE</div>
+      <button class="btn primary" onclick="fetchLogs(1)">
+        <span>↻</span> Refresh
+      </button>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-row">
+    <div class="stat-card blue">
+      <div class="stat-label">Total Reports</div>
+      <div class="stat-value" id="statTotal">—</div>
+      <div class="stat-sub">all time</div>
+    </div>
+    <div class="stat-card green">
+      <div class="stat-label">Today</div>
+      <div class="stat-value" id="statToday">—</div>
+      <div class="stat-sub">24h window</div>
+    </div>
+    <div class="stat-card red">
+      <div class="stat-label">Moderation</div>
+      <div class="stat-value" id="statMod">—</div>
+      <div class="stat-sub">kicks/bans/warns</div>
+    </div>
+    <div class="stat-card purple">
+      <div class="stat-label">Top Admin</div>
+      <div class="stat-value" id="statTopAdmin" style="font-size:16px;padding-top:4px">—</div>
+      <div class="stat-sub" id="statTopAdminCount">—</div>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="filters-bar">
+    <div class="search-wrap">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input type="text" id="filterAdmin" placeholder="Search admin name..." oninput="debounceSearch()">
+    </div>
+    <select id="filterCategory" onchange="fetchLogs(1)">
+      <option value="">All Categories</option>
+      <option value="moderation">Moderation</option>
+      <option value="teleport">Teleport</option>
+      <option value="spectate">Spectate</option>
+      <option value="spawn">Spawn</option>
+      <option value="other">Other</option>
+    </select>
+    <select id="filterCommand" onchange="fetchLogs(1)">
+      <option value="">All Commands</option>
+      <option value="kick">kick</option>
+      <option value="ban">ban</option>
+      <option value="tempban">tempban</option>
+      <option value="warn">warn</option>
+      <option value="freeze">freeze</option>
+      <option value="spectate">spectate</option>
+      <option value="tp">tp</option>
+      <option value="bring">bring</option>
+      <option value="noclip">noclip</option>
+      <option value="god">god</option>
+      <option value="giveweapon">giveweapon</option>
+      <option value="givemoney">givemoney</option>
+      <option value="kill">kill</option>
+    </select>
+    <select id="filterPerPage" onchange="fetchLogs(1)">
+      <option value="25">25 / page</option>
+      <option value="50">50 / page</option>
+      <option value="100">100 / page</option>
+    </select>
+  </div>
+
+  <!-- Table -->
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Report ID</th>
+          <th>Admin</th>
+          <th>Command</th>
+          <th>Category</th>
+          <th>Target</th>
+          <th class="hide-mobile">Reason</th>
+          <th>Time</th>
+        </tr>
+      </thead>
+      <tbody id="logsBody">
+        <tr class="loading-row">
+          <td colspan="7"><span class="spinner"></span> Loading...</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="pagination" id="paginationBar" style="display:none">
+      <span id="paginationInfo"></span>
+      <div class="page-btns" id="pageButtons"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Detail Modal -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+  <div class="modal" id="detailModal">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="modalTitle">Report Detail</div>
+        <div class="modal-id" id="modalId"></div>
+      </div>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── State ────────────────────────────────────────────────────────────────────
+let currentPage  = 1;
+let totalPages   = 1;
+let searchTimer  = null;
+
+// ── Category colours ─────────────────────────────────────────────────────────
+const CATEGORY_CLASS = {
+  moderation: 'badge-moderation',
+  teleport:   'badge-teleport',
+  spectate:   'badge-spectate',
+  spawn:      'badge-spawn',
+  other:      'badge-other',
+};
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  fetchStats();
+  fetchLogs(1);
+  // Auto-refresh every 60s
+  setInterval(() => { fetchStats(); fetchLogs(currentPage, true); }, 60000);
+});
+
+// ── Fetch stats ───────────────────────────────────────────────────────────────
+async function fetchStats() {
+  try {
+    const r = await fetch('/api/admin-logs/stats/summary');
+    if (!r.ok) return;
+    const d = await r.json();
+    document.getElementById('statTotal').textContent = d.total ?? '—';
+    document.getElementById('statToday').textContent = d.today ?? '—';
+
+    const modCat = (d.by_category || []).find(c => c.category === 'moderation');
+    document.getElementById('statMod').textContent = modCat ? modCat.cnt : 0;
+
+    const top = d.top_admins && d.top_admins[0];
+    if (top) {
+      document.getElementById('statTopAdmin').textContent = top.admin_name || '—';
+      document.getElementById('statTopAdminCount').textContent = `${top.cnt} actions`;
+    }
+  } catch (e) {
+    console.warn('Stats fetch failed', e);
+  }
+}
+
+// ── Fetch logs ────────────────────────────────────────────────────────────────
+async function fetchLogs(page, silent = false) {
+  currentPage = page;
+
+  const adminName = document.getElementById('filterAdmin').value.trim();
+  const category  = document.getElementById('filterCategory').value;
+  const command   = document.getElementById('filterCommand').value;
+  const perPage   = document.getElementById('filterPerPage').value;
+
+  const params = new URLSearchParams({ page, per_page: perPage });
+  if (adminName) params.set('admin_name', adminName);
+  if (category)  params.set('category', category);
+  if (command)   params.set('command', command);
+
+  if (!silent) {
+    document.getElementById('logsBody').innerHTML = `
+      <tr class="loading-row"><td colspan="7"><span class="spinner"></span> Loading...</td></tr>`;
+  }
+
+  try {
+    const r = await fetch('/api/admin-logs?' + params);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    renderTable(d);
+    renderPagination(d);
+    document.getElementById('subtitleText').textContent =
+      `${d.total} report${d.total !== 1 ? 's' : ''} on record`;
+    document.getElementById('liveStatus').style.opacity = '1';
+  } catch (e) {
+    document.getElementById('logsBody').innerHTML = `
+      <tr class="loading-row"><td colspan="7" style="color:var(--danger)">Failed to load — ${e.message}</td></tr>`;
+    document.getElementById('liveStatus').style.opacity = '.4';
+  }
+}
+
+// ── Render table rows ─────────────────────────────────────────────────────────
+function renderTable(data) {
+  const body = document.getElementById('logsBody');
+  if (!data.reports || data.reports.length === 0) {
+    body.innerHTML = `
+      <tr><td colspan="7">
+        <div class="empty-state">
+          <div class="empty-icon">📋</div>
+          <p>No reports found matching your filters.</p>
+        </div>
+      </td></tr>`;
+    return;
+  }
+
+  body.innerHTML = data.reports.map(r => {
+    const catClass = r.is_developer ? 'badge-dev' : (CATEGORY_CLASS[r.category] || 'badge-other');
+    const catLabel = r.is_developer ? '🔧 DEV' : (r.category || 'other');
+    const avatar   = (r.admin_name || '?')[0].toUpperCase();
+    const time     = formatTime(r.timestamp || r.created_at);
+
+    return `
+      <tr onclick="openModal('${esc(r.report_id)}')">
+        <td class="td-id">${esc(r.report_id || '—')}</td>
+        <td>
+          <div class="player-cell">
+            <div class="player-avatar">${avatar}</div>
+            <div>
+              <div class="player-name">${esc(r.admin_name || 'Unknown')}</div>
+              ${r.admin_discord ? `<div class="player-disc">${esc(r.admin_discord)}</div>` : ''}
+            </div>
+          </div>
+        </td>
+        <td class="cmd-cell">
+          <span class="cmd-name">/${esc(r.command || '—')}</span>
+          <span class="cmd-label">${esc(r.command_label || '')}</span>
+        </td>
+        <td><span class="badge ${catClass}">${catLabel}</span></td>
+        <td>
+          ${r.target_name
+            ? `<div class="player-cell">
+                <div class="player-avatar" style="background:rgba(232,64,64,.15);border-color:rgba(232,64,64,.3);color:var(--danger)">${(r.target_name[0]||'?').toUpperCase()}</div>
+                <div>
+                  <div class="player-name">${esc(r.target_name)}</div>
+                  ${r.target_discord ? `<div class="player-disc">${esc(r.target_discord)}</div>` : ''}
+                </div>
+               </div>`
+            : '<span style="color:var(--muted);font-size:12px">—</span>'}
+        </td>
+        <td class="reason-cell hide-mobile">${esc(r.reason || '—')}</td>
+        <td class="td-time">${time}</td>
+      </tr>`;
+  }).join('');
+}
+
+// ── Render pagination ─────────────────────────────────────────────────────────
+function renderPagination(data) {
+  totalPages = data.pages || 1;
+  const bar  = document.getElementById('paginationBar');
+  const info = document.getElementById('paginationInfo');
+  const btns = document.getElementById('pageButtons');
+
+  const start = ((data.page - 1) * data.per_page) + 1;
+  const end   = Math.min(data.page * data.per_page, data.total);
+  info.textContent = `Showing ${start}–${end} of ${data.total}`;
+
+  let html = '';
+  html += `<button class="page-btn" onclick="fetchLogs(${Math.max(1,currentPage-1)})" ${currentPage===1?'disabled':''}>‹</button>`;
+
+  const pages = paginate(currentPage, totalPages);
+  pages.forEach(p => {
+    if (p === '…') {
+      html += `<button class="page-btn" disabled style="letter-spacing:0">…</button>`;
+    } else {
+      html += `<button class="page-btn ${p===currentPage?'active':''}" onclick="fetchLogs(${p})">${p}</button>`;
+    }
+  });
+
+  html += `<button class="page-btn" onclick="fetchLogs(${Math.min(totalPages,currentPage+1)})" ${currentPage===totalPages?'disabled':''}>›</button>`;
+  btns.innerHTML = html;
+  bar.style.display = 'flex';
+}
+
+function paginate(cur, total) {
+  if (total <= 7) return Array.from({length:total},(_,i)=>i+1);
+  if (cur <= 4)  return [1,2,3,4,5,'…',total];
+  if (cur >= total-3) return [1,'…',total-4,total-3,total-2,total-1,total];
+  return [1,'…',cur-1,cur,cur+1,'…',total];
+}
+
+// ── Modal ─────────────────────────────────────────────────────────────────────
+async function openModal(reportId) {
+  const overlay = document.getElementById('modalOverlay');
+  const body    = document.getElementById('modalBody');
+  document.getElementById('modalId').textContent = reportId;
+  document.getElementById('modalTitle').textContent = 'Loading...';
+  body.innerHTML = `<div style="text-align:center;padding:40px;color:var(--muted)"><span class="spinner"></span></div>`;
+  overlay.classList.add('open');
+
+  try {
+    const r = await fetch('/api/admin-logs/' + encodeURIComponent(reportId));
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    renderModal(d);
+  } catch (e) {
+    body.innerHTML = `<p style="color:var(--danger);text-align:center">Failed to load report: ${e.message}</p>`;
+  }
+}
+
+function renderModal(r) {
+  const catClass = r.is_developer ? 'badge-dev' : (CATEGORY_CLASS[r.category] || 'badge-other');
+  const catLabel = r.is_developer ? '🔧 Developer Use' : (r.category || 'other');
+
+  document.getElementById('modalTitle').innerHTML =
+    `<span style="font-family:var(--mono);color:var(--accent)">/${esc(r.command)}</span>
+     &nbsp;<span class="badge ${catClass}" style="vertical-align:middle">${catLabel}</span>`;
+
+  document.getElementById('modalBody').innerHTML = `
+    <div class="detail-grid">
+      <div class="detail-block">
+        <div class="detail-block-label">Admin</div>
+        <div class="detail-row"><span class="detail-key">Name</span><span class="detail-val accent">${esc(r.admin_name||'—')}</span></div>
+        <div class="detail-row"><span class="detail-key">Discord</span><span class="detail-val">${esc(r.admin_discord||'—')}</span></div>
+        <div class="detail-row"><span class="detail-key">License</span><span class="detail-val" style="font-size:10px">${esc(r.admin_license||'—')}</span></div>
+        <div class="detail-row"><span class="detail-key">Server ID</span><span class="detail-val">${r.admin_server_id||'—'}</span></div>
+      </div>
+      <div class="detail-block">
+        <div class="detail-block-label">Target</div>
+        <div class="detail-row"><span class="detail-key">Name</span><span class="detail-val danger">${esc(r.target_name||'—')}</span></div>
+        <div class="detail-row"><span class="detail-key">Discord</span><span class="detail-val">${esc(r.target_discord||'—')}</span></div>
+        <div class="detail-row"><span class="detail-key">License</span><span class="detail-val" style="font-size:10px">${esc(r.target_license||'—')}</span></div>
+        <div class="detail-row"><span class="detail-key">Server ID</span><span class="detail-val">${r.target_server_id||'—'}</span></div>
+      </div>
+      <div class="detail-block">
+        <div class="detail-block-label">Action</div>
+        <div class="detail-row"><span class="detail-key">Command</span><span class="detail-val accent">/${esc(r.command||'—')}</span></div>
+        <div class="detail-row"><span class="detail-key">Label</span><span class="detail-val">${esc(r.command_label||'—')}</span></div>
+        <div class="detail-row"><span class="detail-key">Category</span><span class="detail-val">${esc(r.category||'—')}</span></div>
+        <div class="detail-row"><span class="detail-key">Source</span><span class="detail-val">${esc(r.source_resource||'manual')}</span></div>
+      </div>
+      <div class="detail-block">
+        <div class="detail-block-label">Metadata</div>
+        <div class="detail-row"><span class="detail-key">Timestamp</span><span class="detail-val" style="font-size:10px">${esc(r.timestamp||r.created_at||'—')}</span></div>
+        <div class="detail-row"><span class="detail-key">Developer</span><span class="detail-val ${r.is_developer?'cyan':''}"> ${r.is_developer ? '✓ Yes' : 'No'}</span></div>
+        <div class="detail-row"><span class="detail-key">Scanner</span><span class="detail-val">${r.from_scanner ? '✓ Yes' : 'No'}</span></div>
+        ${r.admin_user_id ? `<div class="detail-row"><span class="detail-key">User ID</span><span class="detail-val">${r.admin_user_id}</span></div>` : ''}
+      </div>
+      <div class="detail-block full">
+        <div class="detail-block-label">Reason</div>
+        <div class="reason-box">${esc(r.reason||'No reason provided')}</div>
+      </div>
+    </div>`;
+}
+
+function closeModal(e) {
+  if (e && e.target !== document.getElementById('modalOverlay')) return;
+  document.getElementById('modalOverlay').classList.remove('open');
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') document.getElementById('modalOverlay').classList.remove('open'); });
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function formatTime(ts) {
+  if (!ts) return '—';
+  try {
+    const d = new Date(ts);
+    const now = Date.now();
+    const diff = now - d.getTime();
+    if (diff < 60000)   return 'just now';
+    if (diff < 3600000) return Math.floor(diff/60000) + 'm ago';
+    if (diff < 86400000) return Math.floor(diff/3600000) + 'h ago';
+    return d.toLocaleDateString('en-ZA', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
+  } catch { return ts; }
+}
+
+function esc(s) {
+  if (s == null) return '';
+  return String(s)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;');
+}
+
+function debounceSearch() {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => fetchLogs(1), 450);
+}
+
+function showToast(msg, color = 'var(--text)') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.color = color;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+</script>
+</body>
+</html>

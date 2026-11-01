@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+{% block title %}Economy Overview{% endblock %}
+{% block content %}
+<div style="max-width:1400px;margin:0 auto;padding:1.5rem;">
+  <div class="page-header">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;">
+      <div>
+        <h1 class="page-title">Economy Overview</h1>
+        <p style="color:var(--text-muted);font-size:0.875rem;margin-top:0.25rem;">Live wealth snapshot · 14-day trends · player distribution</p>
+      </div>
+      <div style="display:flex;gap:0.5rem;align-items:center;">
+        <span id="last-updated" style="font-size:0.75rem;color:var(--text-subtle);"></span>
+        <button class="btn btn-ghost btn-sm" onclick="loadEconomy()"><i class="ti ti-refresh"></i> Refresh</button>
+        <a href="{{ url_for('analytics.dashboard') }}" class="btn btn-ghost btn-sm"><i class="ti ti-arrow-left"></i> Analytics</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Live stats -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;margin-bottom:1.5rem;" id="eco-stats">
+    {% for i in range(5) %}<div class="stat-card skeleton" style="height:90px;"></div>{% endfor %}
+  </div>
+
+  <!-- Trend + Distribution -->
+  <div style="display:grid;grid-template-columns:2fr 1fr;gap:1.5rem;margin-bottom:1.5rem;">
+    <div class="card">
+      <div class="card-title" style="margin-bottom:1rem;">Average Player Wealth at Session End (14 Days)</div>
+      <canvas id="wealthTrend" height="90"></canvas>
+    </div>
+    <div class="card">
+      <div class="card-title" style="margin-bottom:0.875rem;">Live Cash Distribution</div>
+      <canvas id="distChart"></canvas>
+      <div id="dist-legend" style="margin-top:0.75rem;display:flex;flex-direction:column;gap:0.375rem;"></div>
+    </div>
+  </div>
+
+  <!-- Leaderboards -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:1.5rem;">
+    <!-- Live richest -->
+    <div class="card" style="padding:0;overflow:hidden;">
+      <div style="padding:0.875rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+        <span class="card-title">Richest Players Right Now</span>
+        <span id="online-badge" class="badge badge-green" style="font-size:0.65rem;"></span>
+      </div>
+      <table class="data-table" id="richest-table">
+        <thead><tr><th>#</th><th>Player</th><th>Cash</th><th>Bank</th><th>Total</th></tr></thead>
+        <tbody><tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--text-subtle);">Loading…</td></tr></tbody>
+      </table>
+    </div>
+
+    <!-- All-time richest (historical peak) -->
+    <div class="card" style="padding:0;overflow:hidden;">
+      <div style="padding:0.875rem 1.25rem;border-bottom:1px solid var(--border);">
+        <span class="card-title">All-Time Peak Wealth</span>
+        <span style="font-size:0.72rem;color:var(--text-subtle);display:block;margin-top:2px;">Highest recorded at session end</span>
+      </div>
+      <table class="data-table" id="historical-table">
+        <thead><tr><th>#</th><th>Player</th><th>Peak Cash</th><th>Peak Bank</th><th>Sessions</th></tr></thead>
+        <tbody><tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--text-subtle);">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Weekly top earners + session stats -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;">
+    <div class="card" style="padding:0;overflow:hidden;">
+      <div style="padding:0.875rem 1.25rem;border-bottom:1px solid var(--border);">
+        <span class="card-title">Top Earners This Week</span>
+        <span style="font-size:0.72rem;color:var(--text-subtle);display:block;margin-top:2px;">Highest cash at session logout</span>
+      </div>
+      <table class="data-table" id="earners-table">
+        <thead><tr><th>#</th><th>Player</th><th>Cash</th><th>Bank</th></tr></thead>
+        <tbody><tr><td colspan="4" style="text-align:center;padding:2rem;color:var(--text-subtle);">Loading…</td></tr></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <div class="card-title" style="margin-bottom:1rem;">Weekly Economy Summary</div>
+      <div id="week-summary" style="display:flex;flex-direction:column;gap:0.875rem;"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+var _trendChart = null;
+var _distChart  = null;
+
+function fmt(n) { return '$' + (n || 0).toLocaleString(); }
+function medal(i) { return ['🥇','🥈','🥉'][i] || (i + 1); }
+
+async function loadEconomy() {
+  var d;
+  try {
+    d = await fetch('/analytics/data/economy').then(function(r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    });
+  } catch(e) {
+    document.getElementById('eco-stats').innerHTML =
+      '<div class="stat-card" style="grid-column:1/-1;text-align:center;color:var(--red);padding:2rem;">Failed to load economy data: ' + e.message + '</div>';
+    return;
+  }
+
+  document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+  document.getElementById('online-badge').textContent = d.online_players + ' online';
+
+  // ── Stats ──────────────────────────────────────────────────────────────────
+  document.getElementById('eco-stats').innerHTML = [
+    ['Players Online',     d.online_players,                    'ti-users',         '#22c55e'],
+    ['Live Cash Total',    fmt(d.total_cash_in_game),           'ti-coin',          '#f59e0b'],
+    ['Live Bank Total',    fmt(d.total_bank_in_game),           'ti-building-bank', '#3b82f6'],
+    ['Total Wealth Live',  fmt(d.total_wealth_in_game),         'ti-wallet',        '#6366f1'],
+    ['Avg per Player',     fmt(d.avg_cash_per_player + d.avg_bank_per_player), 'ti-chart-bar', '#8b5cf6'],
+  ].map(function(row) {
+    return '<div class="stat-card">' +
+      '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:0.5rem;">' +
+        '<div>' +
+          '<div class="stat-value" style="color:' + row[3] + ';font-size:1.25rem;">' + row[1] + '</div>' +
+          '<div class="stat-label">' + row[0] + '</div>' +
+        '</div>' +
+        '<div style="width:36px;height:36px;border-radius:10px;background:' + row[3] + '22;display:flex;align-items:center;justify-content:center;color:' + row[3] + ';font-size:1.1rem;flex-shrink:0;">' +
+          '<i class="ti ' + row[2] + '"></i>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+
+  // ── Wealth trend chart ─────────────────────────────────────────────────────
+  if (_trendChart) _trendChart.destroy();
+  _trendChart = new Chart(document.getElementById('wealthTrend'), {
+    type: 'line',
+    data: {
+      labels: d.daily_wealth.map(function(x) { return x.day; }),
+      datasets: [
+        { label: 'Avg Total Wealth',  data: d.daily_wealth.map(function(x) { return x.avg_total; }),
+          borderColor: '#6366f1', backgroundColor: '#6366f122', fill: true, tension: 0.4, pointRadius: 3, pointBackgroundColor: '#6366f1' },
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false },
+                 tooltip: { callbacks: { label: function(ctx) { return ' ' + fmt(ctx.raw); } } } },
+      scales: {
+        x: { grid: { display: false } },
+        y: { beginAtZero: true, grid: { color: 'rgba(99,102,241,0.08)' },
+             ticks: { callback: function(v) { return v >= 1000000 ? '$' + (v/1000000).toFixed(1) + 'M' : v >= 1000 ? '$' + (v/1000).toFixed(0) + 'k' : '$' + v; } } }
+      }
+    }
+  });
+
+  // ── Cash distribution doughnut ─────────────────────────────────────────────
+  var dist = d.cash_distribution;
+  var distLabels  = ['Broke (<$1k)', 'Low ($1k–$10k)', 'Mid ($10k–$100k)', 'High ($100k–$500k)', 'Whale ($500k+)'];
+  var distColors  = ['#6b7280', '#3b82f6', '#22c55e', '#f59e0b', '#ef4444'];
+  var distValues  = [dist.broke, dist.low, dist.mid, dist.high, dist.whale];
+  var distTotal   = distValues.reduce(function(a,b) { return a+b; }, 0) || 1;
+
+  if (_distChart) _distChart.destroy();
+  _distChart = new Chart(document.getElementById('distChart'), {
+    type: 'doughnut',
+    data: {
+      labels: distLabels,
+      datasets: [{ data: distValues, backgroundColor: distColors.map(function(c) { return c + '99'; }), borderColor: distColors, borderWidth: 2 }]
+    },
+    options: { responsive: true, plugins: { legend: { display: false } }, cutout: '65%' }
+  });
+  document.getElementById('dist-legend').innerHTML = distLabels.map(function(l, i) {
+    var pct = Math.round(distValues[i] / distTotal * 100);
+    return '<div style="display:flex;align-items:center;gap:0.5rem;font-size:0.78rem;">' +
+      '<div style="width:10px;height:10px;border-radius:2px;background:' + distColors[i] + ';flex-shrink:0;"></div>' +
+      '<span style="flex:1;color:var(--text-muted);">' + l + '</span>' +
+      '<span style="font-family:\'JetBrains Mono\',monospace;color:var(--text-primary);">' + distValues[i] + '</span>' +
+      '<span style="color:var(--text-subtle);width:32px;text-align:right;">' + pct + '%</span>' +
+    '</div>';
+  }).join('');
+
+  // ── Live richest table ─────────────────────────────────────────────────────
+  var rtb = document.getElementById('richest-table').querySelector('tbody');
+  rtb.innerHTML = !d.richest_players.length
+    ? '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--text-subtle);">No players online</td></tr>'
+    : d.richest_players.map(function(p, i) {
+        return '<tr>' +
+          '<td style="color:var(--text-subtle);text-align:center;">' + medal(i) + '</td>' +
+          '<td style="font-weight:600;">' + p.name + '</td>' +
+          '<td style="font-family:\'JetBrains Mono\',monospace;color:#f59e0b;">' + fmt(p.cash) + '</td>' +
+          '<td style="font-family:\'JetBrains Mono\',monospace;color:#3b82f6;">' + fmt(p.bank) + '</td>' +
+          '<td style="font-family:\'JetBrains Mono\',monospace;font-weight:700;color:var(--accent);">' + fmt(p.total) + '</td>' +
+        '</tr>';
+      }).join('');
+
+  // ── Historical richest table ───────────────────────────────────────────────
+  var htb = document.getElementById('historical-table').querySelector('tbody');
+  htb.innerHTML = !d.historical_richest.length
+    ? '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--text-subtle);">No session data yet</td></tr>'
+    : d.historical_richest.map(function(p, i) {
+        return '<tr>' +
+          '<td style="color:var(--text-subtle);text-align:center;">' + medal(i) + '</td>' +
+          '<td><div style="font-weight:600;font-size:0.85rem;">' + p.name + '</div>' +
+               '<div style="font-size:0.7rem;font-family:\'JetBrains Mono\',monospace;color:var(--text-subtle);">' + p.discord_id + '</div></td>' +
+          '<td style="font-family:\'JetBrains Mono\',monospace;color:#f59e0b;">' + fmt(p.peak_cash) + '</td>' +
+          '<td style="font-family:\'JetBrains Mono\',monospace;color:#3b82f6;">' + fmt(p.peak_bank) + '</td>' +
+          '<td style="text-align:center;color:var(--text-muted);">' + p.sessions + '</td>' +
+        '</tr>';
+      }).join('');
+
+  // ── Top earners this week ──────────────────────────────────────────────────
+  var etb = document.getElementById('earners-table').querySelector('tbody');
+  etb.innerHTML = !d.top_earners_week.length
+    ? '<tr><td colspan="4" style="text-align:center;padding:2rem;color:var(--text-subtle);">No data this week</td></tr>'
+    : d.top_earners_week.map(function(p, i) {
+        return '<tr>' +
+          '<td style="color:var(--text-subtle);text-align:center;">' + medal(i) + '</td>' +
+          '<td style="font-weight:600;">' + p.name + '</td>' +
+          '<td style="font-family:\'JetBrains Mono\',monospace;color:#f59e0b;">' + fmt(p.cash) + '</td>' +
+          '<td style="font-family:\'JetBrains Mono\',monospace;color:#3b82f6;">' + fmt(p.bank) + '</td>' +
+        '</tr>';
+      }).join('');
+
+  // ── Weekly summary ─────────────────────────────────────────────────────────
+  document.getElementById('week-summary').innerHTML = [
+    ['Sessions this week',    d.week_sessions,                      'ti-clock', 'var(--text-muted)'],
+    ['Avg cash at logout',    fmt(d.avg_cash_leave_week),           'ti-coin',  '#f59e0b'],
+    ['Avg bank at logout',    fmt(d.avg_bank_leave_week),           'ti-building-bank', '#3b82f6'],
+    ['Avg total at logout',   fmt(d.avg_cash_leave_week + d.avg_bank_leave_week), 'ti-wallet', '#6366f1'],
+  ].map(function(row) {
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:0.625rem 0;border-bottom:1px solid var(--border);">' +
+      '<div style="display:flex;align-items:center;gap:0.5rem;font-size:0.85rem;color:var(--text-muted);">' +
+        '<i class="ti ' + row[2] + '" style="color:' + row[3] + ';"></i>' + row[0] +
+      '</div>' +
+      '<span style="font-family:\'JetBrains Mono\',monospace;font-size:0.9rem;font-weight:600;">' + row[1] + '</span>' +
+    '</div>';
+  }).join('');
+}
+
+loadEconomy();
+setInterval(loadEconomy, 30000);
+</script>
+{% endblock %}

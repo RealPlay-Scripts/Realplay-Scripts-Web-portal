@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+<div style="max-width:900px;margin:0 auto;padding:2rem 1.5rem;">
+  <div class="page-header"><h1 class="page-title">Account Settings</h1></div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;">
+    <div>
+      <!-- Profile -->
+      <div class="card" style="margin-bottom:1rem;">
+        <div class="card-title" style="margin-bottom:1rem;">Profile</div>
+        <form method="POST" enctype="multipart/form-data">
+          <input type="hidden" name="action" value="update_profile"/>
+          <div style="margin-bottom:0.875rem;">
+            <label class="form-label">Avatar</label>
+            <div style="display:flex;align-items:center;gap:0.875rem;margin-bottom:0.5rem;">
+              {% if current_user.discord_avatar_url %}
+                <img src="{{ current_user.discord_avatar_url }}" class="avatar" style="width:48px;height:48px;" />
+              {% else %}
+                <div class="avatar" style="width:48px;height:48px;background:var(--accent-dim);font-size:1.1rem;">{{ current_user.username[0].upper() }}</div>
+              {% endif %}
+              <input type="file" name="avatar" class="form-input" accept="image/*" style="padding:0.375rem;" />
+            </div>
+          </div>
+          <div style="margin-bottom:0.875rem;"><label class="form-label">Bio</label><textarea name="bio" class="form-input" rows="3" placeholder="Tell us about yourself…" maxlength="500">{{ current_user.bio or '' }}</textarea></div>
+          <div style="margin-bottom:1rem;"><label class="form-label">Timezone</label>
+            <select name="timezone" class="form-input">
+              {% for tz in ['UTC','Africa/Johannesburg','Europe/London','America/New_York','America/Los_Angeles','Australia/Sydney'] %}
+                <option value="{{ tz }}" {% if current_user.timezone==tz %}selected{% endif %}>{{ tz }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm" style="width:100%;justify-content:center;">Save Profile</button>
+        </form>
+      </div>
+
+      <!-- Password -->
+      <div class="card" style="margin-bottom:1rem;">
+        <div class="card-title" style="margin-bottom:1rem;">Change Password</div>
+        <form method="POST" action="{{ url_for('auth.change_password') }}">
+          <div style="margin-bottom:0.75rem;"><label class="form-label">Current Password</label><input type="password" name="current_password" class="form-input" required /></div>
+          <div style="margin-bottom:0.75rem;"><label class="form-label">New Password</label><input type="password" name="new_password" class="form-input" required minlength="8" /></div>
+          <div style="margin-bottom:1rem;"><label class="form-label">Confirm New Password</label><input type="password" name="confirm_password" class="form-input" required /></div>
+          <button type="submit" class="btn btn-ghost btn-sm" style="width:100%;justify-content:center;">Update Password</button>
+        </form>
+      </div>
+
+      <!-- 2FA -->
+      <div class="card">
+        <div class="card-title" style="margin-bottom:0.875rem;">Two-Factor Authentication</div>
+        {% if current_user.totp_enabled %}
+        <div class="flash-message flash-success" style="margin-bottom:0.875rem;"><i class="ti ti-shield-check"></i><span>2FA is enabled on your account.</span></div>
+        <form method="POST" action="{{ url_for('auth.disable_2fa') }}">
+          <label class="form-label">Password to Disable 2FA</label>
+          <input type="password" name="password" class="form-input" required style="margin-bottom:0.75rem;" />
+          <button type="submit" class="btn btn-danger btn-sm" style="width:100%;justify-content:center;">Disable 2FA</button>
+        </form>
+        {% else %}
+        <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:0.875rem;">Add an extra layer of security using an authenticator app.</p>
+        <a href="{{ url_for('auth.setup_2fa') }}" class="btn btn-primary btn-sm" style="width:100%;justify-content:center;"><i class="ti ti-shield-check"></i> Enable 2FA</a>
+        {% endif %}
+      </div>
+    </div>
+
+    <div>
+      <!-- Discord -->
+      <div class="card" style="margin-bottom:1rem;">
+        <div class="card-title" style="margin-bottom:1rem;">Discord Account</div>
+        {% if current_user.discord_id %}
+        <div style="display:flex;align-items:center;gap:0.875rem;margin-bottom:1rem;">
+          {% if current_user.discord_avatar_url %}<img src="{{ current_user.discord_avatar_url }}" class="avatar" style="width:44px;height:44px;" />{% endif %}
+          <div>
+            <div style="font-weight:700;">{{ current_user.discord_username }}</div>
+            <div style="font-size:0.75rem;font-family:'JetBrains Mono',monospace;color:var(--text-subtle);">{{ current_user.discord_id }}</div>
+          </div>
+          <span class="badge badge-green" style="margin-left:auto;">Connected</span>
+        </div>
+        <div style="display:flex;gap:0.5rem;">
+          <form method="POST" action="{{ url_for('discord_oauth.sync_roles') }}" style="flex:1;">
+            <button type="submit" class="btn btn-ghost btn-sm" style="width:100%;justify-content:center;"><i class="ti ti-refresh"></i> Sync Roles</button>
+          </form>
+          <form method="POST" action="{{ url_for('discord_oauth.disconnect') }}" onsubmit="return confirm('Disconnect Discord?')">
+            <button type="submit" class="btn btn-danger btn-sm">Disconnect</button>
+          </form>
+        </div>
+        {% else %}
+        <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:0.875rem;">Connect your Discord account to apply for whitelist.</p>
+        <a href="{{ url_for('discord_oauth.connect') }}" class="btn btn-sm" style="background:#5865F2;color:#fff;width:100%;justify-content:center;">
+          <svg width="16" height="16" viewBox="0 0 71 55" fill="currentColor" style="flex-shrink:0;"><path d="M60.1 4.9A58.5 58.5 0 0 0 45.5.4a.2.2 0 0 0-.2.1 40.8 40.8 0 0 0-1.8 3.7 54 54 0 0 0-16.2 0 37.4 37.4 0 0 0-1.9-3.7.2.2 0 0 0-.2-.1A58.4 58.4 0 0 0 10.6 4.9a.2.2 0 0 0-.1.1C1.6 18.3-.9 31.3.3 44.1a.2.2 0 0 0 .1.2A58.8 58.8 0 0 0 18.1 54a.2.2 0 0 0 .2-.1 42 42 0 0 0 3.6-5.9.2.2 0 0 0-.1-.3 38.7 38.7 0 0 1-5.5-2.6.2.2 0 0 1 0-.4l1.1-.8a.2.2 0 0 1 .2 0c11.5 5.2 23.9 5.2 35.3 0a.2.2 0 0 1 .2 0l1.1.8a.2.2 0 0 1 0 .4 36.2 36.2 0 0 1-5.5 2.6.2.2 0 0 0-.1.3 47.1 47.1 0 0 0 3.6 5.9.2.2 0 0 0 .2.1 58.6 58.6 0 0 0 17.7-9.7.2.2 0 0 0 .1-.2c1.5-15-2.5-28-10.4-39.2a.2.2 0 0 0-.1-.1z"/></svg>
+          Connect Discord
+        </a>
+        {% endif %}
+      </div>
+
+      <!-- API Keys -->
+      <div class="card" style="margin-bottom:1rem;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+          <span class="card-title">API Keys</span>
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('create-key-modal').classList.remove('hidden')"><i class="ti ti-plus"></i></button>
+        </div>
+        {% if api_keys %}
+        <div style="display:flex;flex-direction:column;gap:0.5rem;">
+          {% for key in api_keys %}
+          <div style="display:flex;align-items:center;gap:0.75rem;padding:0.625rem;background:var(--surface-1);border-radius:8px;">
+            <div style="flex:1;min-width:0;">
+              <div style="font-weight:600;font-size:0.8rem;">{{ key.name }}</div>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:0.7rem;color:var(--text-subtle);">{{ key.prefix }}</div>
+            </div>
+            <div style="display:flex;gap:4px;flex-wrap:wrap;">
+              {% for scope in key.get_scopes() %}<span class="badge badge-purple" style="font-size:0.6rem;">{{ scope }}</span>{% endfor %}
+            </div>
+            <form method="POST" action="{{ url_for('profile.revoke_api_key', key_id=key.id) }}">
+              <button type="submit" class="btn btn-danger btn-sm" style="padding:3px 8px;"><i class="ti ti-trash" style="font-size:0.8rem;"></i></button>
+            </form>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p style="font-size:0.8rem;color:var(--text-subtle);text-align:center;padding:1rem;">No API keys yet</p>
+        {% endif %}
+      </div>
+
+      <!-- Account stats -->
+      <div class="card">
+        <div class="card-title" style="margin-bottom:1rem;">Account Stats</div>
+        <div style="display:flex;flex-direction:column;gap:0.5rem;font-size:0.85rem;">
+          {% for label, val in [
+            ('Login Count', current_user.login_count or 0),
+            ('Applications', current_user.applications.count()),
+            ('Last IP', current_user.last_ip or '—'),
+          ] %}
+          <div style="display:flex;justify-content:space-between;padding:0.5rem;background:var(--surface-1);border-radius:6px;">
+            <span style="color:var(--text-muted);">{{ label }}</span>
+            <span style="font-family:'JetBrains Mono',monospace;">{{ val }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Create API Key modal -->
+<div id="create-key-modal" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);">
+  <div class="card" style="width:400px;max-width:90vw;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;">
+      <div style="font-size:1.1rem;font-weight:700;">Create API Key</div>
+      <button onclick="document.getElementById('create-key-modal').classList.add('hidden')" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:1.25rem;">×</button>
+    </div>
+    <form method="POST" action="{{ url_for('profile.create_api_key') }}">
+      <div style="margin-bottom:0.875rem;"><label class="form-label">Key Name</label><input type="text" name="name" class="form-input" placeholder="My Integration" required /></div>
+      <div style="margin-bottom:1rem;">
+        <div class="form-label" style="margin-bottom:0.5rem;">Scopes</div>
+        {% for scope, desc in [('read','Read data'),('write','Write data'),('admin','Full admin access')] %}
+        <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;margin-bottom:0.375rem;font-size:0.875rem;">
+          <input type="checkbox" name="scopes" value="{{ scope }}" {% if scope=='read' %}checked{% endif %} style="accent-color:var(--accent);" /> {{ scope }} <span style="color:var(--text-subtle);">— {{ desc }}</span>
+        </label>
+        {% endfor %}
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;">Create Key</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

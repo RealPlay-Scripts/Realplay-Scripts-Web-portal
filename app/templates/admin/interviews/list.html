@@ -1,0 +1,150 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Interviews{% endblock %}
+{% block admin_content %}
+
+<div class="page-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;">
+  <div>
+    <h1 class="page-title">📅  Interviews</h1>
+    <p style="color:var(--text-muted);font-size:0.875rem;margin-top:0.25rem;">
+      Manage scheduled interview sessions. Pending: <strong style="color:#f59e0b;">{{ pending }}</strong> &nbsp;·&nbsp; Upcoming: <strong style="color:#6366f1;">{{ upcoming }}</strong>
+    </p>
+  </div>
+</div>
+
+<!-- Status filter tabs -->
+<div style="display:flex;gap:0.375rem;margin-bottom:1.25rem;flex-wrap:wrap;">
+  {% set filters = [('active','All Active'),('pending','Pending'),('confirmed','Confirmed'),('completed','Completed'),('cancelled','Cancelled'),('no_show','No Show')] %}
+  {% for val, label in filters %}
+  <a href="{{ url_for('interviews.admin_interviews', status=val) }}"
+     class="btn btn-sm {% if status_filter == val %}btn-primary{% else %}btn-ghost{% endif %}">
+    {{ label }}
+  </a>
+  {% endfor %}
+</div>
+
+{% if not interviews %}
+<div class="card" style="padding:3rem;text-align:center;">
+  <i class="ti ti-calendar-off" style="font-size:2.5rem;color:var(--text-subtle);display:block;margin-bottom:0.875rem;opacity:0.4;"></i>
+  <div style="font-weight:600;margin-bottom:0.25rem;">No interviews found</div>
+  <div style="font-size:0.82rem;color:var(--text-muted);">No interviews match this filter.</div>
+</div>
+{% else %}
+<div style="display:flex;flex-direction:column;gap:0.875rem;">
+  {% for iv in interviews %}
+  <div class="card" style="padding:1.25rem 1.5rem;border-left:3px solid {{ iv.status_color }};">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
+
+      <!-- Left info -->
+      <div style="display:flex;align-items:center;gap:1rem;">
+        <div style="width:44px;height:44px;border-radius:10px;background:{{ iv.status_color }}22;display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0;">
+          {% if iv.applicant.discord_avatar_url %}
+            <img src="{{ iv.applicant.discord_avatar_url }}" style="width:44px;height:44px;border-radius:10px;object-fit:cover;" />
+          {% else %}
+            <span style="font-weight:700;color:{{ iv.status_color }};">{{ iv.applicant.username[0].upper() }}</span>
+          {% endif %}
+        </div>
+        <div>
+          <div style="font-weight:700;font-size:0.9rem;">
+            {{ iv.applicant.username }}
+            <span style="font-size:0.7rem;font-weight:600;border-radius:4px;padding:0.1rem 0.45rem;background:{{ iv.status_color }}22;color:{{ iv.status_color }};margin-left:0.25rem;">
+              {{ iv.status_label }}
+            </span>
+            <span style="font-size:0.7rem;color:var(--text-subtle);margin-left:0.25rem;">#{{ iv.id }}</span>
+          </div>
+          <div style="font-size:0.82rem;color:var(--text-muted);margin-top:0.15rem;">
+            📅 {{ iv.interview_date.strftime('%A, %d %b %Y') }} &nbsp;⏰ <strong>{{ iv.interview_time.strftime('%H:%M') }} SAST</strong>
+          </div>
+          {% if iv.interviewer %}
+          <div style="font-size:0.75rem;color:var(--text-subtle);">Interviewer: {{ iv.interviewer.username }}</div>
+          {% else %}
+          <div style="font-size:0.75rem;color:#f59e0b;"><i class="ti ti-alert-circle"></i> No interviewer assigned</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <button class="btn btn-ghost btn-sm" onclick="togglePanel('panel-{{ iv.id }}')">
+        <i class="ti ti-chevron-down"></i> Manage
+      </button>
+    </div>
+
+    <!-- Expandable admin panel -->
+    <div id="panel-{{ iv.id }}" style="display:none;margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border);">
+      {% if iv.notes %}
+      <div style="background:var(--surface-3);border-radius:8px;padding:0.75rem;margin-bottom:1rem;font-size:0.82rem;">
+        <div style="font-size:0.68rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-subtle);margin-bottom:0.25rem;">Applicant notes</div>
+        {{ iv.notes }}
+      </div>
+      {% endif %}
+
+      <form method="POST" action="{{ url_for('interviews.admin_update', interview_id=iv.id) }}">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.875rem;">
+          <div>
+            <label class="form-label" style="font-size:0.75rem;">Assign Interviewer</label>
+            <select name="interviewer_id" class="form-input" style="font-size:0.82rem;">
+              <option value="0">— Unassigned —</option>
+              {% for s in staff %}
+              <option value="{{ s.id }}" {% if iv.interviewer_id == s.id %}selected{% endif %}>{{ s.username }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="form-label" style="font-size:0.75rem;">Staff Notes</label>
+            <input type="text" name="staff_notes" class="form-input" value="{{ iv.staff_notes or '' }}"
+                   maxlength="1000" placeholder="Internal notes…" style="font-size:0.82rem;" />
+          </div>
+        </div>
+
+        <!-- Action buttons -->
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+          {% if iv.status == 'pending' %}
+          <button type="submit" name="action" value="confirm"
+                  class="btn btn-sm" style="background:#6366f1;color:#fff;border:none;">
+            <i class="ti ti-check"></i> Confirm
+          </button>
+          {% endif %}
+          {% if iv.status in ('pending','confirmed') %}
+          <button type="submit" name="action" value="complete"
+                  class="btn btn-sm" style="background:#22c55e;color:#fff;border:none;">
+            <i class="ti ti-trophy"></i> Mark Completed
+          </button>
+          <button type="submit" name="action" value="no_show"
+                  class="btn btn-sm" style="background:#ef4444;color:#fff;border:none;">
+            <i class="ti ti-user-off"></i> No Show
+          </button>
+          <button type="button" onclick="document.getElementById('cancel-{{ iv.id }}').classList.toggle('hidden')"
+                  class="btn btn-ghost btn-sm" style="color:#f87171;">
+            <i class="ti ti-x"></i> Cancel
+          </button>
+          {% endif %}
+          <button type="submit" name="action" value="save" class="btn btn-ghost btn-sm">
+            <i class="ti ti-device-floppy"></i> Save Notes
+          </button>
+        </div>
+
+        <!-- Cancel sub-form -->
+        <div id="cancel-{{ iv.id }}" class="hidden" style="margin-top:0.75rem;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:0.875rem;">
+          <label class="form-label" style="font-size:0.75rem;color:#f87171;">Cancel Reason</label>
+          <div style="display:flex;gap:0.5rem;">
+            <input type="text" name="cancel_reason" class="form-input" maxlength="512"
+                   placeholder="Reason for cancellation…" style="font-size:0.82rem;flex:1;" />
+            <button type="submit" name="action" value="cancel"
+                    class="btn btn-sm" style="background:#ef4444;color:#fff;border:none;white-space:nowrap;">
+              Confirm Cancel
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<script>
+function togglePanel(id) {
+  const el = document.getElementById(id);
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+</script>
+{% endblock %}

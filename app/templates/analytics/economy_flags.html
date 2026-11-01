@@ -1,0 +1,582 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Economy Flags{% endblock %}
+{% block admin_content %}
+<div class="page-header">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;">
+    <div>
+      <h1 class="page-title" style="display:flex;align-items:center;gap:0.75rem;">
+        <span style="color:#ef4444;"><i class="ti ti-alert-triangle"></i></span>
+        Economy Flags
+        <span id="flag-badge" class="badge" style="background:#ef444422;color:#ef4444;border-color:#ef444444;font-size:0.7rem;"></span>
+        <span id="live-dot" style="display:inline-flex;align-items:center;gap:5px;font-size:0.7rem;font-weight:500;color:#22c55e;">
+          <span style="width:7px;height:7px;border-radius:50%;background:#22c55e;animation:livePulse 2s infinite;"></span>
+          LIVE
+        </span>
+      </h1>
+      <p style="color:var(--text-muted);font-size:0.875rem;margin-top:0.25rem;">
+        Players flagged for receiving &gt;$10,000 within a 24-hour window &nbsp;·&nbsp;
+        <span id="last-check" style="color:var(--text-subtle);">Checking…</span>
+      </p>
+    </div>
+    <div style="display:flex;gap:0.5rem;">
+      <button class="btn btn-ghost btn-sm" onclick="runFlagScan(this)"><i class="ti ti-search"></i> Run Scan Now</button>
+      <button class="btn btn-ghost btn-sm" onclick="openClearModal()" style="color:#f87171;border-color:rgba(248,113,113,.3);"><i class="ti ti-trash"></i> Clear Flags</button>
+    </div>
+  </div>
+</div>
+
+<!-- Flags table -->
+<div class="card" style="padding:0;overflow:hidden;margin-bottom:1.5rem;">
+  <div style="padding:0.875rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:0.75rem;">
+    <span class="card-title">Active Flags</span>
+    <div style="display:flex;gap:0.375rem;margin-left:auto;">
+      <button class="btn btn-ghost btn-sm flag-filter active" data-filter="all">All</button>
+      <button class="btn btn-ghost btn-sm flag-filter" data-filter="pending" style="color:#ef4444;">Unreviewed</button>
+      <button class="btn btn-ghost btn-sm flag-filter" data-filter="reviewed" style="color:#22c55e;">Reviewed</button>
+    </div>
+  </div>
+  <div class="scroll-x">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Player</th><th>Gain</th><th>Before</th><th>After</th><th>Window</th><th>Detected</th><th>Status</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="flags-body">
+        <tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--text-subtle);">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Player history modal -->
+<div id="player-modal" class="modal-overlay hidden">
+  <div class="modal-box" style="width:900px;max-width:95vw;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;">
+      <div>
+        <div id="modal-title" style="font-size:1.1rem;font-weight:700;"></div>
+        <div id="modal-sub" style="font-size:0.8rem;color:var(--text-muted);margin-top:2px;"></div>
+      </div>
+      <div style="display:flex;gap:0.5rem;align-items:center;">
+        <a id="pdf-link" href="#" class="btn btn-ghost btn-sm" target="_blank"><i class="ti ti-file-download"></i> Download PDF</a>
+        <button onclick="closeModal('player-modal')" class="modal-close">×</button>
+      </div>
+    </div>
+
+    <!-- Summary stats -->
+    <div id="modal-stats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.75rem;margin-bottom:1.25rem;"></div>
+
+    <!-- 30-day chart -->
+    <div style="margin-bottom:1.25rem;">
+      <div class="card-title" style="margin-bottom:0.75rem;">30-Day Wealth History</div>
+      <canvas id="modal-chart" height="80"></canvas>
+    </div>
+
+    <!-- Day-by-day table -->
+    <div style="margin-bottom:1.25rem;">
+      <div class="card-title" style="margin-bottom:0.75rem;">Day-by-Day Breakdown</div>
+      <div style="max-height:240px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;">
+        <table class="data-table" id="modal-history-table" style="margin:0;">
+          <thead><tr><th>Date</th><th>Cash</th><th>Bank</th><th>Total Wealth</th><th>Daily Change</th><th>Sessions</th></tr></thead>
+          <tbody id="modal-history-body"><tr><td colspan="6" style="text-align:center;padding:1rem;color:var(--text-subtle);">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Player's flags -->
+    <div>
+      <div class="card-title" style="margin-bottom:0.75rem;">Economy Flags on This Account</div>
+      <div id="modal-flags" style="display:flex;flex-direction:column;gap:0.5rem;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Review modal -->
+<div id="review-modal" class="modal-overlay hidden">
+  <div class="modal-box" style="width:420px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+      <div style="font-weight:700;">Mark as Reviewed</div>
+      <button onclick="closeModal('review-modal')" class="modal-close">×</button>
+    </div>
+    <input type="hidden" id="review-flag-id" value="">
+    <label class="form-label">Review Note (optional)</label>
+    <textarea id="review-note" class="form-input" rows="3" placeholder="e.g. Verified legitimate — casino win" style="margin-bottom:1rem;resize:vertical;"></textarea>
+    <div style="display:flex;gap:0.5rem;">
+      <button class="btn btn-primary" style="flex:1;justify-content:center;" onclick="submitReview()">Mark Reviewed</button>
+      <button class="btn btn-ghost" onclick="closeModal('review-modal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<style>
+.modal-overlay { position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);padding:1rem; }
+.modal-overlay.hidden { display:none !important; }
+.modal-box { background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:1.5rem;max-height:90vh;overflow-y:auto; }
+.modal-close { background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:1.4rem;line-height:1;padding:0 0.25rem; }
+.modal-close:hover { color:var(--text-primary); }
+.flag-filter.active { background:var(--surface-3);color:var(--text-primary); }
+</style>
+
+<script>
+var _allFlags = [];
+var _modalChart = null;
+
+function fmt(n) { return '$' + (n || 0).toLocaleString(); }
+
+function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+function closeModal(id) {
+  document.getElementById(id).classList.add('hidden');
+  if (id === 'player-modal' && _modalChart) { _modalChart.destroy(); _modalChart = null; }
+}
+document.addEventListener('click', function(e) { if (e.target.classList.contains('modal-overlay')) closeModal(e.target.id); });
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') document.querySelectorAll('.modal-overlay:not(.hidden)').forEach(function(m) { closeModal(m.id); });
+});
+
+async function loadFlags() {
+  var d;
+  try { d = await fetch('/analytics/economy/flags').then(function(r) { return r.json(); }); }
+  catch(e) { return; }
+  _allFlags = d.flags;
+  var badge = document.getElementById('flag-badge');
+  badge.textContent = d.unreviewed_count + ' unreviewed';
+  badge.style.display = d.unreviewed_count > 0 ? '' : 'none';
+  renderFlags('all');
+}
+
+function renderFlags(filter) {
+  var rows = filter === 'pending'  ? _allFlags.filter(function(f) { return !f.is_reviewed; })
+           : filter === 'reviewed' ? _allFlags.filter(function(f) { return f.is_reviewed; })
+           : _allFlags;
+  var tbody = document.getElementById('flags-body');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--text-subtle);">No flags found</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(function(f) {
+    var reviewed = f.is_reviewed
+      ? '<span class="badge badge-green" style="font-size:0.65rem;">Reviewed</span>'
+      : '<span class="badge" style="background:#ef444422;color:#ef4444;border-color:#ef444444;font-size:0.65rem;">⚠ Pending</span>';
+    var winStart = f.window_start ? f.window_start.substr(0,10) : '—';
+    var winEnd   = f.window_end   ? f.window_end.substr(0,10)   : '—';
+    var det      = f.detected_at  ? f.detected_at.substr(0,16).replace('T',' ') : '—';
+    var before   = fmt((f.cash_before||0) + (f.bank_before||0));
+    var after    = fmt((f.cash_after||0)  + (f.bank_after||0));
+    return '<tr>' +
+      '<td><div style="font-weight:600;font-size:0.85rem;">' + f.player_name + '</div>' +
+           '<div style="font-size:0.7rem;font-family:\'JetBrains Mono\',monospace;color:var(--text-subtle);">' + f.discord_id + '</div></td>' +
+      '<td style="font-family:\'JetBrains Mono\',monospace;font-weight:700;color:#ef4444;">' + fmt(f.amount_gain) + '</td>' +
+      '<td style="font-family:\'JetBrains Mono\',monospace;font-size:0.8rem;">' + before + '</td>' +
+      '<td style="font-family:\'JetBrains Mono\',monospace;font-size:0.8rem;">' + after + '</td>' +
+      '<td style="font-size:0.78rem;color:var(--text-muted);">' + winStart + ' → ' + winEnd + '</td>' +
+      '<td style="font-size:0.78rem;color:var(--text-subtle);white-space:nowrap;">' + det + '</td>' +
+      '<td>' + reviewed + '</td>' +
+      '<td><div style="display:flex;gap:0.375rem;">' +
+        '<button class="btn btn-ghost btn-sm" onclick="viewPlayer(\'' + f.discord_id + '\')" title="View player history"><i class="ti ti-user"></i></button>' +
+        (!f.is_reviewed ? '<button class="btn btn-ghost btn-sm" onclick="openReview(' + f.id + ')" title="Mark reviewed" style="color:#22c55e;"><i class="ti ti-check"></i></button>' : '') +
+        '<button class="btn btn-ghost btn-sm" onclick="deleteFlag(' + f.id + ')" title="Delete flag" style="color:#f87171;"><i class="ti ti-trash"></i></button>' +
+      '</div></td>' +
+    '</tr>';
+  }).join('');
+}
+
+async function viewPlayer(discordId) {
+  document.getElementById('modal-title').textContent = 'Loading…';
+  document.getElementById('modal-sub').textContent   = '';
+  document.getElementById('modal-stats').innerHTML   = '';
+  document.getElementById('modal-history-body').innerHTML = '<tr><td colspan="6" style="text-align:center;padding:1rem;color:var(--text-subtle);">Loading…</td></tr>';
+  document.getElementById('modal-flags').innerHTML   = '';
+  document.getElementById('pdf-link').href = '/analytics/economy/player/' + discordId + '/statement';
+  openModal('player-modal');
+
+  var d;
+  try { d = await fetch('/analytics/economy/player/' + discordId + '/history').then(function(r) { return r.json(); }); }
+  catch(e) { document.getElementById('modal-title').textContent = 'Failed to load'; return; }
+
+  document.getElementById('modal-title').textContent = d.player_name;
+  document.getElementById('modal-sub').textContent   = 'Discord: ' + d.discord_id + ' · ' + d.total_sessions_30d + ' sessions in last 30 days';
+
+  // Stats
+  document.getElementById('modal-stats').innerHTML = [
+    ['Current Cash',  fmt(d.current_cash),  '#f59e0b'],
+    ['Current Bank',  fmt(d.current_bank),  '#3b82f6'],
+    ['Peak Wealth',   fmt(d.peak_wealth),   '#6366f1'],
+    ['Flags Raised',  d.flags.length,       d.flags.length > 0 ? '#ef4444' : '#22c55e'],
+  ].map(function(row) {
+    return '<div class="stat-card" style="padding:0.75rem;">' +
+      '<div style="font-size:1.1rem;font-weight:700;color:' + row[2] + ';font-family:\'JetBrains Mono\',monospace;">' + row[1] + '</div>' +
+      '<div style="font-size:0.72rem;color:var(--text-subtle);text-transform:uppercase;letter-spacing:0.06em;">' + row[0] + '</div>' +
+    '</div>';
+  }).join('');
+
+  // Chart
+  if (_modalChart) { _modalChart.destroy(); _modalChart = null; }
+  var labels = d.history.map(function(h) { return h.date.substr(5); }); // MM-DD
+  var totals  = d.history.map(function(h) { return h.total; });
+  var gains   = d.history.map(function(h) { return h.gain; });
+  _modalChart = new Chart(document.getElementById('modal-chart'), {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [
+        { type: 'line', label: 'Total Wealth', data: totals, borderColor: '#6366f1', backgroundColor: '#6366f111',
+          fill: true, tension: 0.3, pointRadius: 2, yAxisID: 'y' },
+        { type: 'bar',  label: 'Daily Change', data: gains,
+          backgroundColor: gains.map(function(g) { return g >= 0 ? '#22c55e55' : '#ef444455'; }),
+          borderColor:     gains.map(function(g) { return g >= 0 ? '#22c55e' : '#ef4444'; }),
+          borderWidth: 1.5, borderRadius: 3, yAxisID: 'y2' },
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'top' },
+                 tooltip: { callbacks: { label: function(ctx) { return ' ' + fmt(ctx.raw); } } } },
+      scales: {
+        x:  { grid: { display: false }, ticks: { maxTicksLimit: 14 } },
+        y:  { position: 'left',  grid: { color: 'rgba(99,102,241,0.08)' },
+               ticks: { callback: function(v) { return v >= 1000000 ? '$'+(v/1000000).toFixed(1)+'M' : v >= 1000 ? '$'+(v/1000).toFixed(0)+'k' : '$'+v; } } },
+        y2: { position: 'right', grid: { display: false },
+               ticks: { callback: function(v) { return (v >= 0 ? '+$' : '-$') + Math.abs(v).toLocaleString(); } } },
+      }
+    }
+  });
+
+  // History table
+  var tbody = document.getElementById('modal-history-body');
+  if (!d.history.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:1rem;color:var(--text-subtle);">No data</td></tr>';
+  } else {
+    tbody.innerHTML = d.history.slice().reverse().map(function(h) {
+      var gc = h.gain >= 0 ? '#22c55e' : '#ef4444';
+      var flagDay = Math.abs(h.gain) >= 10000;
+      return '<tr data-date="' + h.date + '"' + (flagDay ? ' style="background:#fef2f2;"' : '') + '>' +
+        '<td style="font-family:\'JetBrains Mono\',monospace;font-size:0.8rem;">' + h.date + (flagDay ? ' ⚠' : '') + '</td>' +
+        '<td style="font-family:\'JetBrains Mono\',monospace;font-size:0.8rem;color:#f59e0b;">' + fmt(h.cash) + '</td>' +
+        '<td style="font-family:\'JetBrains Mono\',monospace;font-size:0.8rem;color:#3b82f6;">' + fmt(h.bank) + '</td>' +
+        '<td style="font-family:\'JetBrains Mono\',monospace;font-size:0.8rem;font-weight:600;">' + fmt(h.total) + '</td>' +
+        '<td style="font-family:\'JetBrains Mono\',monospace;font-size:0.8rem;color:' + gc + ';font-weight:600;">' +
+          (h.gain >= 0 ? '+' : '') + fmt(h.gain) + '</td>' +
+        '<td style="text-align:center;color:var(--text-muted);">' + h.sessions + '</td>' +
+      '</tr>';
+    }).join('');
+  }
+
+  // Flags on this player
+  var flagsEl = document.getElementById('modal-flags');
+  if (!d.flags.length) {
+    flagsEl.innerHTML = '<p style="color:var(--text-subtle);font-size:0.85rem;">No flags on this account.</p>';
+  } else {
+    flagsEl.innerHTML = d.flags.map(function(f) {
+      return '<div style="border:1px solid #fca5a5;border-radius:8px;padding:0.625rem 0.875rem;background:#fef2f2;display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">' +
+        '<span style="font-family:\'JetBrains Mono\',monospace;font-weight:700;color:#ef4444;">' + fmt(f.amount_gain) + '</span>' +
+        '<span style="font-size:0.8rem;color:#b91c1c;">gained in 24h</span>' +
+        '<span style="font-size:0.75rem;color:var(--text-subtle);">' + (f.detected_at||'').substr(0,16).replace('T',' ') + '</span>' +
+        (f.is_reviewed
+          ? '<span class="badge badge-green" style="font-size:0.6rem;margin-left:auto;">Reviewed</span>'
+          : '<span class="badge" style="background:#ef444422;color:#ef4444;font-size:0.6rem;margin-left:auto;">Pending</span>') +
+        (f.review_note ? '<div style="width:100%;font-size:0.78rem;color:var(--text-muted);margin-top:2px;">Note: ' + f.review_note + '</div>' : '') +
+      '</div>';
+    }).join('');
+  }
+}
+
+function openReview(flagId) {
+  document.getElementById('review-flag-id').value = flagId;
+  document.getElementById('review-note').value    = '';
+  openModal('review-modal');
+}
+
+async function submitReview() {
+  var id   = document.getElementById('review-flag-id').value;
+  var note = document.getElementById('review-note').value;
+  try {
+    var r = await fetch('/analytics/economy/flags/' + id + '/review', {
+      method: 'POST', credentials: 'same-origin',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({note: note})
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    closeModal('review-modal');
+    showToast('Flag marked as reviewed', 'success');
+    loadFlags();
+  } catch(e) {
+    showToast('Failed: ' + e.message, 'error');
+  }
+}
+
+async function runFlagScan(btn) {
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 1s linear infinite;"></i> Scanning…';
+  try {
+    var r = await fetch('/analytics/economy/check-flags', {method: 'POST', credentials: 'same-origin'});
+    var d = await r.json();
+    if (d.success === false) {
+      showToast('Scan error: ' + (d.error || 'unknown'), 'error');
+    } else {
+      showToast('Scan complete — ' + d.flags_created + ' new flag(s), ' + d.total_unreviewed + ' total pending', 'success');
+      loadFlags();
+    }
+  } catch(e) {
+    showToast('Scan failed: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ti ti-search"></i> Run Scan Now';
+  }
+}
+
+// Filter buttons
+document.querySelectorAll('.flag-filter').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.flag-filter').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    _activeFilter = btn.dataset.filter;
+    renderFlags(_activeFilter);
+  });
+});
+
+// ── Live state ─────────────────────────────────────────────────────────────────
+var _activeFilter      = 'all';
+var _knownFlagIds      = new Set();
+var _knownFlagAmounts  = {};
+var _openPlayerDiscord = null;
+var _modalPollTimer    = null;
+
+function _updateLastCheck() {
+  var el = document.getElementById('last-check');
+  if (el) el.textContent = 'Updated ' + new Date().toLocaleTimeString();
+}
+
+// ── Main flags poll (every 10s) ────────────────────────────────────────────────
+async function pollFlags() {
+  var dot = document.getElementById('live-dot');
+  if (dot) dot.style.opacity = '0.5';
+  var d;
+  try {
+    d = await fetch('/analytics/economy/flags').then(function(r) { return r.json(); });
+  } catch(e) {
+    if (dot) dot.style.opacity = '1';
+    return;
+  }
+
+  var firstLoad = _knownFlagIds.size === 0;
+
+  d.flags.forEach(function(f) {
+    var isNew     = !_knownFlagIds.has(f.id);
+    var prevAmt   = _knownFlagAmounts[f.discord_id];
+    var isUpdated = !isNew && prevAmt !== undefined && prevAmt !== f.amount_gain;
+
+    if (!firstLoad && isNew) {
+      showToast('\u{1F6A8} New flag: ' + f.player_name + ' +$' + (f.amount_gain || 0).toLocaleString(), 'error');
+    } else if (!firstLoad && isUpdated) {
+      showToast('\u{1F4C8} Updated: ' + f.player_name + ' now +$' + (f.amount_gain || 0).toLocaleString(), 'info');
+    }
+
+    _knownFlagIds.add(f.id);
+    _knownFlagAmounts[f.discord_id] = f.amount_gain;
+  });
+
+  _allFlags = d.flags;
+  var badge = document.getElementById('flag-badge');
+  badge.textContent = d.unreviewed_count + ' unreviewed';
+  badge.style.display = d.unreviewed_count > 0 ? '' : 'none';
+  renderFlags(_activeFilter);
+  _updateLastCheck();
+  if (dot) dot.style.opacity = '1';
+}
+
+// ── Modal player poll (every 15s while open) ───────────────────────────────────
+function _startModalPoll(discordId) {
+  _openPlayerDiscord = discordId;
+  clearInterval(_modalPollTimer);
+  _modalPollTimer = setInterval(function() {
+    if (!_openPlayerDiscord) { clearInterval(_modalPollTimer); return; }
+    fetch('/analytics/economy/player/' + _openPlayerDiscord + '/history')
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        // Update stat cards
+        var statsEl = document.getElementById('modal-stats');
+        if (statsEl) {
+          statsEl.innerHTML = [
+            ['Current Cash',  fmt(d.current_cash),  '#f59e0b'],
+            ['Current Bank',  fmt(d.current_bank),  '#3b82f6'],
+            ['Peak Wealth',   fmt(d.peak_wealth),   '#6366f1'],
+            ['Flags',         d.flags.length,       d.flags.length > 0 ? '#ef4444' : '#22c55e'],
+          ].map(function(row) {
+            return '<div class="stat-card" style="padding:0.75rem;">' +
+              '<div style="font-size:1.1rem;font-weight:700;color:' + row[2] + ';font-family:\'JetBrains Mono\',monospace;">' + row[1] + '</div>' +
+              '<div style="font-size:0.72rem;color:var(--text-subtle);text-transform:uppercase;letter-spacing:0.06em;">' + row[0] + '</div>' +
+            '</div>';
+          }).join('');
+        }
+        // Flash and update the top history row if today's data changed
+        if (d.history.length) {
+          var newest = d.history[d.history.length - 1];
+          var tbody  = document.getElementById('modal-history-body');
+          if (tbody) {
+            var firstRow = tbody.querySelector('tr');
+            if (firstRow && firstRow.dataset.date === newest.date) {
+              firstRow.cells[3].textContent = fmt(newest.total);
+              var gc = newest.gain >= 0 ? '#22c55e' : '#ef4444';
+              firstRow.cells[4].style.color   = gc;
+              firstRow.cells[4].textContent   = (newest.gain >= 0 ? '+' : '') + fmt(newest.gain);
+              firstRow.style.transition = 'background 0.6s';
+              firstRow.style.background = 'rgba(99,102,241,0.18)';
+              setTimeout(function() { firstRow.style.background = ''; firstRow.style.transition = ''; }, 1500);
+            }
+          }
+        }
+      }).catch(function() {});
+  }, 15000);
+}
+
+function _stopModalPoll() {
+  _openPlayerDiscord = null;
+  clearInterval(_modalPollTimer);
+}
+
+// Patch closeModal to stop modal poll
+var _baseCloseModal = closeModal;
+closeModal = function(id) {
+  _baseCloseModal(id);
+  if (id === 'player-modal') _stopModalPoll();
+};
+
+// Patch viewPlayer to start modal poll
+var _baseViewPlayer = viewPlayer;
+viewPlayer = function(discordId) {
+  _baseViewPlayer(discordId);
+  setTimeout(function() { _startModalPoll(discordId); }, 800);
+};
+
+// Initial load + polling
+pollFlags();
+setInterval(pollFlags, 10000);
+</script>
+<style>
+@keyframes spin      { to { transform: rotate(360deg); } }
+@keyframes livePulse { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:0.4; transform:scale(0.7); } }
+</style>
+
+<!-- ── Clear Flags Modal ─────────────────────────────────────────────────── -->
+<div id="clear-modal" class="modal-overlay hidden">
+  <div class="modal-box" style="max-width:420px;">
+    <div class="modal-header">
+      <h3 class="modal-title" style="color:#f87171;display:flex;align-items:center;gap:.5rem;">
+        <i class="ti ti-trash"></i> Clear Economy Flags
+      </h3>
+      <button onclick="closeModal('clear-modal')" class="modal-close">×</button>
+    </div>
+    <div style="padding:1.25rem;display:flex;flex-direction:column;gap:.75rem;">
+      <p style="font-size:.875rem;color:var(--text-muted);margin:0;">
+        Choose what to delete. <strong style="color:#f87171;">This cannot be undone.</strong>
+      </p>
+
+      <label style="display:flex;align-items:flex-start;gap:.65rem;cursor:pointer;padding:.7rem;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);">
+        <input type="radio" name="clear-mode" value="reviewed" checked style="margin-top:2px;">
+        <div>
+          <div style="font-size:.875rem;font-weight:600;color:var(--text-primary);">All reviewed flags</div>
+          <div style="font-size:.78rem;color:var(--text-muted);">Remove flags that have already been marked as reviewed</div>
+        </div>
+      </label>
+
+      <label id="clear-player-label" style="display:flex;align-items:flex-start;gap:.65rem;cursor:pointer;padding:.7rem;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);">
+        <input type="radio" name="clear-mode" value="player" style="margin-top:2px;">
+        <div style="flex:1;">
+          <div style="font-size:.875rem;font-weight:600;color:var(--text-primary);">Specific player</div>
+          <div style="font-size:.78rem;color:var(--text-muted);margin-bottom:.4rem;">Delete all flags for one Discord ID</div>
+          <input id="clear-discord-id" class="form-input" style="font-size:.8rem;padding:.4rem .6rem;" placeholder="Discord ID e.g. 344560012997165057">
+        </div>
+      </label>
+
+      <label style="display:flex;align-items:flex-start;gap:.65rem;cursor:pointer;padding:.7rem;border-radius:8px;border:1px solid rgba(248,113,113,.2);background:rgba(248,113,113,.04);">
+        <input type="radio" name="clear-mode" value="all" style="margin-top:2px;">
+        <div>
+          <div style="font-size:.875rem;font-weight:600;color:#f87171;">All flags</div>
+          <div style="font-size:.78rem;color:var(--text-muted);">Wipe the entire flags table — reviewed and pending</div>
+        </div>
+      </label>
+
+      <div id="clear-confirm-row" style="display:none;margin-top:.25rem;">
+        <label style="display:flex;align-items:center;gap:.5rem;font-size:.82rem;color:#f87171;cursor:pointer;">
+          <input type="checkbox" id="clear-confirm-check">
+          I understand this will permanently delete all flags
+        </label>
+      </div>
+
+      <div style="display:flex;gap:.5rem;margin-top:.25rem;">
+        <button class="btn btn-ghost" style="flex:1;justify-content:center;" onclick="closeModal('clear-modal')">Cancel</button>
+        <button class="btn btn-primary" id="clear-submit-btn"
+          style="flex:1;justify-content:center;background:#f87171;border-color:#f87171;"
+          onclick="submitClear()">
+          <i class="ti ti-trash"></i> Delete Flags
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Clear modal ───────────────────────────────────────────────────────────────
+function openClearModal() {
+  document.querySelectorAll('input[name="clear-mode"]').forEach(r => { if (r.value === 'reviewed') r.checked = true; });
+  document.getElementById('clear-discord-id').value = '';
+  document.getElementById('clear-confirm-check').checked = false;
+  document.getElementById('clear-confirm-row').style.display = 'none';
+  openModal('clear-modal');
+}
+
+document.querySelectorAll('input[name="clear-mode"]').forEach(r => {
+  r.addEventListener('change', () => {
+    const isAll = r.value === 'all' && r.checked;
+    document.getElementById('clear-confirm-row').style.display = isAll ? 'block' : 'none';
+  });
+});
+
+async function submitClear() {
+  const mode   = document.querySelector('input[name="clear-mode"]:checked')?.value;
+  const discId = document.getElementById('clear-discord-id').value.trim();
+
+  if (mode === 'all' && !document.getElementById('clear-confirm-check').checked) {
+    showToast('Please tick the confirmation checkbox first', 'warning'); return;
+  }
+  if (mode === 'player' && !discId) {
+    showToast('Enter a Discord ID to clear flags for a specific player', 'warning'); return;
+  }
+
+  const btn = document.getElementById('clear-submit-btn');
+  btn.disabled = true; btn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin .8s linear infinite"></i> Deleting…';
+
+  try {
+    const r = await fetch('/analytics/economy/flags/clear', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ mode, discord_id: discId }),
+    });
+    const d = await r.json();
+    if (d.success) {
+      showToast(`Deleted ${d.deleted} flag${d.deleted !== 1 ? 's' : ''}`, 'success');
+      closeModal('clear-modal');
+      pollFlags();
+    } else {
+      showToast(d.error || 'Clear failed', 'error');
+    }
+  } catch(e) {
+    showToast('Request failed: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ti ti-trash"></i> Delete Flags';
+  }
+}
+
+// ── Delete single flag ────────────────────────────────────────────────────────
+async function deleteFlag(flagId) {
+  if (!confirm('Delete this flag? This cannot be undone.')) return;
+  try {
+    const r = await fetch('/analytics/economy/flags/' + flagId + '/delete', { method: 'POST' });
+    const d = await r.json();
+    if (d.success) { showToast('Flag deleted', 'success'); pollFlags(); }
+    else showToast(d.error || 'Delete failed', 'error');
+  } catch(e) { showToast('Request failed', 'error'); }
+}
+</script>
+{% endblock %}

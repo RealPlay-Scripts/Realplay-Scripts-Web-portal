@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}404 — Not Found{% endblock %}
+{% block content %}
+<div style="min-height:calc(100vh - 61px);display:flex;align-items:center;justify-content:center;text-align:center;padding:2rem;">
+  <div>
+    <div style="font-size:6rem;font-weight:900;color:var(--accent);font-family:'JetBrains Mono',monospace;line-height:1;margin-bottom:1rem;opacity:0.4;">404</div>
+    <h1 style="font-size:1.5rem;font-weight:700;margin-bottom:0.5rem;">Page Not Found</h1>
+    <p style="color:var(--text-muted);margin-bottom:2rem;">The page you're looking for doesn't exist or has been moved.</p>
+    <a href="{{ url_for('main.index') }}" class="btn btn-primary"><i class="ti ti-home"></i> Go Home</a>
+  </div>
+</div>
+{% endblock %}

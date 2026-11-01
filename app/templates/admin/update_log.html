@@ -1,0 +1,483 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Update Log{% endblock %}
+{% block admin_content %}
+
+<style>
+.ul-header { display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap; }
+.ul-badge { display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:99px;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em; }
+.ul-badge-update      { background:rgba(99,102,241,.18);color:#818cf8; }
+.ul-badge-hotfix      { background:rgba(245,158,11,.18);color:#fbbf24; }
+.ul-badge-announcement{ background:rgba(59,130,246,.18);color:#60a5fa; }
+.ul-badge-maintenance { background:rgba(100,116,139,.18);color:#94a3b8; }
+.ul-badge-event       { background:rgba(236,72,153,.18);color:#f472b6; }
+.change-pill { display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:6px;font-size:0.72rem;font-weight:600;margin-bottom:2px; }
+.pill-added   { background:rgba(34,197,94,.15);color:#4ade80; }
+.pill-changed { background:rgba(251,191,36,.12);color:#fbbf24; }
+.pill-fixed   { background:rgba(99,102,241,.15);color:#a5b4fc; }
+.pill-removed { background:rgba(239,68,68,.12);color:#f87171; }
+.pill-note    { background:rgba(148,163,184,.12);color:#94a3b8; }
+.entry-card { border:1px solid var(--border);border-radius:12px;background:var(--surface-2);margin-bottom:1rem;overflow:hidden;transition:border-color .2s; }
+.entry-card:hover { border-color:var(--accent); }
+.entry-header { display:flex;align-items:center;gap:0.75rem;padding:1rem 1.25rem;border-bottom:1px solid var(--border);cursor:pointer;user-select:none; }
+.entry-body { padding:1rem 1.25rem;display:none; }
+.entry-body.open { display:block; }
+.webhook-bar { background:var(--surface-3);border-radius:10px;padding:1rem 1.25rem;margin-bottom:1.5rem;display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap; }
+.change-row { display:flex;align-items:center;gap:0.5rem;margin-bottom:0.4rem; }
+.change-row select { background:var(--surface-3);border:1px solid var(--border);border-radius:6px;padding:4px 8px;color:var(--text-primary);font-size:0.8rem;cursor:pointer; }
+.change-row input { flex:1;background:var(--surface-3);border:1px solid var(--border);border-radius:6px;padding:5px 10px;color:var(--text-primary);font-size:0.85rem; }
+.change-row input:focus, .change-row select:focus { outline:none;border-color:var(--accent); }
+.preview-embed { background:#2b2d31;border-left:4px solid #6366f1;border-radius:0 8px 8px 0;padding:1rem 1.25rem;font-family:'Whitney',system-ui,sans-serif;font-size:0.9rem;max-width:480px; }
+.preview-embed .em-title { font-weight:700;font-size:1rem;color:#fff;margin-bottom:0.3rem; }
+.preview-embed .em-desc  { color:#b5bac1;font-size:0.875rem;margin-bottom:0.75rem;font-style:italic; }
+.preview-embed .em-field-name { font-size:0.8rem;font-weight:700;color:#fff;margin-bottom:3px; }
+.preview-embed .em-field-val  { font-size:0.875rem;color:#dbdee1;margin-bottom:0.6rem;white-space:pre-wrap; }
+.preview-embed .em-footer { font-size:0.72rem;color:#80848e;margin-top:0.75rem;padding-top:0.5rem;border-top:1px solid rgba(255,255,255,.06); }
+</style>
+
+<div class="ul-header">
+  <div>
+    <h1 class="page-title">Update Log</h1>
+    <p style="color:var(--text-muted);font-size:0.875rem;margin-top:.25rem;">Write server updates, patch notes &amp; announcements — posted directly to Discord.</p>
+  </div>
+  <button class="btn btn-primary" onclick="openCreate()"><i class="ti ti-plus"></i> New Entry</button>
+</div>
+
+<!-- Webhook config bar -->
+<div class="webhook-bar">
+  <i class="ti ti-brand-discord" style="color:#5865f2;font-size:1.1rem;flex-shrink:0;"></i>
+  <div style="flex:1;min-width:220px;">
+    <div style="font-size:0.72rem;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;">Discord Webhook URL</div>
+    <input id="wh-url-input" type="text" class="form-input" style="font-family:'JetBrains Mono',monospace;font-size:0.78rem;padding:5px 10px;"
+           placeholder="https://discord.com/api/webhooks/…" value="{{ saved_webhook or '' }}" />
+  </div>
+  <button class="btn btn-ghost btn-sm" onclick="saveWebhook()" id="wh-save-btn"><i class="ti ti-device-floppy"></i> Save</button>
+  <span id="wh-save-msg" style="font-size:0.78rem;color:#4ade80;display:none;">Saved ✓</span>
+</div>
+
+<!-- Entry list -->
+{% if entries %}
+<div id="entry-list">
+  {% for e in entries %}
+  {% set changes = e.get_changes() %}
+  <div class="entry-card" id="card-{{ e.id }}">
+    <div class="entry-header" onclick="toggleCard({{ e.id }})">
+      <span class="ul-badge ul-badge-{{ e.category }}">
+        {% if e.category == 'update' %}🚀{% elif e.category == 'hotfix' %}🔧{% elif e.category == 'announcement' %}📢{% elif e.category == 'maintenance' %}🛠️{% elif e.category == 'event' %}🎉{% endif %}
+        {{ e.category }}
+      </span>
+      {% if e.version %}<span style="font-family:'JetBrains Mono',monospace;font-size:0.75rem;color:var(--text-subtle);">v{{ e.version }}</span>{% endif %}
+      <span style="font-weight:700;font-size:0.95rem;flex:1;">{{ e.title }}</span>
+      <span style="font-size:0.75rem;color:var(--text-subtle);">{{ e.created_at.strftime('%d %b %Y %H:%M') }}</span>
+      {% if e.discord_sent %}
+        <span class="ul-badge" style="background:rgba(88,101,242,.2);color:#7289da;gap:4px;"><i class="ti ti-brand-discord"></i> Sent</span>
+      {% endif %}
+      <i class="ti ti-chevron-down" style="color:var(--text-subtle);transition:transform .2s;" id="chev-{{ e.id }}"></i>
+    </div>
+    <div class="entry-body" id="body-{{ e.id }}">
+      {% if e.summary %}
+      <p style="color:var(--text-muted);font-size:0.875rem;margin-bottom:1rem;font-style:italic;">{{ e.summary }}</p>
+      {% endif %}
+      {% if changes %}
+      <div style="margin-bottom:1rem;">
+        {% set type_order = ['added','changed','fixed','removed','note'] %}
+        {% set type_icons = {'added':'✅','changed':'🔄','fixed':'🛠️','removed':'❌','note':'📝'} %}
+        {% for ctype in type_order %}
+          {% set items = changes | selectattr('type','equalto',ctype) | list %}
+          {% if items %}
+          <div style="margin-bottom:0.6rem;">
+            <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-subtle);margin-bottom:4px;">{{ ctype }}</div>
+            {% for item in items %}
+            <div class="change-pill pill-{{ ctype }}">{{ type_icons[ctype] }} {{ item.text }}</div>
+            {% endfor %}
+          </div>
+          {% endif %}
+        {% endfor %}
+      </div>
+      {% endif %}
+      <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;padding-top:0.75rem;border-top:1px solid var(--border);">
+        <span style="font-size:0.75rem;color:var(--text-subtle);">by {{ e.author.username if e.author else '—' }}</span>
+        <div style="margin-left:auto;display:flex;gap:0.5rem;">
+          <button class="btn btn-ghost btn-sm" onclick="postToDiscord({{ e.id }}, this)">
+            <i class="ti ti-brand-discord"></i>
+            {% if e.discord_sent %}Resend{% else %}Post to Discord{% endif %}
+          </button>
+          <button class="btn btn-ghost btn-sm" onclick="openEdit({{ e.id }}, {{ e.get_changes()|tojson }}, '{{ e.category }}', {{ e.version|tojson if e.version else 'null' }}, {{ e.title|tojson }}, {{ e.summary|tojson if e.summary else 'null' }})">
+            <i class="ti ti-pencil"></i> Edit
+          </button>
+          <button class="btn btn-danger btn-sm" onclick="deleteEntry({{ e.id }}, this)"><i class="ti ti-trash"></i> Delete</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div style="text-align:center;padding:4rem 2rem;color:var(--text-subtle);">
+  <i class="ti ti-notes" style="font-size:2.5rem;display:block;margin-bottom:0.75rem;opacity:.4;"></i>
+  <div style="font-size:0.95rem;">No update entries yet.</div>
+  <div style="font-size:0.82rem;margin-top:.3rem;">Click <strong>New Entry</strong> to write your first update.</div>
+</div>
+{% endif %}
+
+
+<!-- ── Create Modal ─────────────────────────────────────────────────────────── -->
+<div id="create-modal" class="modal-overlay hidden">
+<div class="modal-box" style="width:780px;max-width:98vw;max-height:92vh;overflow-y:auto;display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;">
+
+  <!-- LEFT: form -->
+  <div>
+    <input type="hidden" id="editing-id" value="" />
+    <div style="font-weight:700;font-size:1.05rem;margin-bottom:1.25rem;display:flex;align-items:center;gap:.5rem;">
+      <i id="modal-icon" class="ti ti-notes" style="color:var(--accent);"></i>
+      <span id="modal-title-text">New Update Entry</span>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:.75rem;">
+      <div>
+        <label class="form-label">Category</label>
+        <select id="f-cat" class="form-input" onchange="updatePreview()">
+          <option value="update">🚀 Update</option>
+          <option value="hotfix">🔧 Hotfix</option>
+          <option value="announcement">📢 Announcement</option>
+          <option value="maintenance">🛠️ Maintenance</option>
+          <option value="event">🎉 Event</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Version <span style="color:var(--text-subtle);font-weight:400;">(optional)</span></label>
+        <input id="f-ver" type="text" class="form-input" placeholder="e.g. 2.1.0 or hotfix-04" oninput="updatePreview()" />
+      </div>
+    </div>
+
+    <div style="margin-bottom:.75rem;">
+      <label class="form-label">Title <span style="color:#f87171;">*</span></label>
+      <input id="f-title" type="text" class="form-input" placeholder="e.g. Economy Rework & New Jobs" oninput="updatePreview()" />
+    </div>
+
+    <div style="margin-bottom:1rem;">
+      <label class="form-label">Summary <span style="color:var(--text-subtle);font-weight:400;">(short description shown below title in Discord)</span></label>
+      <input id="f-summary" type="text" class="form-input" placeholder="Brief one-line summary…" oninput="updatePreview()" />
+    </div>
+
+    <div style="margin-bottom:0.5rem;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem;">
+        <label class="form-label" style="margin:0;">Changes</label>
+        <div style="display:flex;gap:4px;">
+          <button type="button" class="btn btn-ghost btn-sm" style="font-size:0.72rem;padding:2px 8px;" onclick="addChange('added')">+ Added</button>
+          <button type="button" class="btn btn-ghost btn-sm" style="font-size:0.72rem;padding:2px 8px;" onclick="addChange('changed')">+ Changed</button>
+          <button type="button" class="btn btn-ghost btn-sm" style="font-size:0.72rem;padding:2px 8px;" onclick="addChange('fixed')">+ Fixed</button>
+          <button type="button" class="btn btn-ghost btn-sm" style="font-size:0.72rem;padding:2px 8px;" onclick="addChange('removed')">+ Removed</button>
+          <button type="button" class="btn btn-ghost btn-sm" style="font-size:0.72rem;padding:2px 8px;" onclick="addChange('note')">+ Note</button>
+        </div>
+      </div>
+      <div id="changes-list" style="display:flex;flex-direction:column;gap:4px;min-height:32px;">
+        <div style="font-size:0.8rem;color:var(--text-subtle);padding:6px 0;" id="no-changes-hint">Click a button above to add change items…</div>
+      </div>
+    </div>
+
+    <div style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--border);display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+      <label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;cursor:pointer;user-select:none;">
+        <input type="checkbox" id="f-post-discord" checked style="accent-color:var(--accent);" onchange="updatePreview()" />
+        Post to Discord on save
+      </label>
+      <div style="margin-left:auto;display:flex;gap:.5rem;">
+        <button type="button" class="btn btn-ghost" onclick="closeCreate()">Cancel</button>
+        <button type="button" class="btn btn-primary" id="modal-save-btn" onclick="submitCreate(this)"><i class="ti ti-send"></i> Save Entry</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: live Discord preview -->
+  <div>
+    <div style="font-size:0.72rem;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.75rem;">Discord Preview</div>
+    <div style="background:#313338;border-radius:10px;padding:1rem;min-height:300px;">
+      <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.75rem;">
+        <div style="width:32px;height:32px;border-radius:50%;background:#6366f1;display:flex;align-items:center;justify-content:center;font-size:.85rem;">🚀</div>
+        <span style="font-weight:700;color:#fff;font-size:.9rem;">Server Updates</span>
+        <span style="font-size:.7rem;color:#80848e;">BOT</span>
+      </div>
+      <div id="preview-embed" class="preview-embed">
+        <div class="em-title" id="pr-title">Update Title</div>
+        <div class="em-desc" id="pr-desc" style="display:none;"></div>
+        <div id="pr-fields"></div>
+        <div class="em-footer" id="pr-footer">Server Update • Posted by {{ current_user.username }}</div>
+      </div>
+    </div>
+    <div style="font-size:0.72rem;color:var(--text-subtle);margin-top:.5rem;text-align:center;">Live preview — updates as you type</div>
+  </div>
+
+</div>
+</div>
+
+<script>
+var SAVE_WH_URL   = "{{ url_for('admin.update_log_save_webhook') }}";
+var CREATE_URL    = "{{ url_for('admin.update_log_create') }}";
+var EDIT_BASE     = "{{ url_for('admin.update_log_edit', entry_id=0) }}".replace('/0', '/');
+var DELETE_BASE   = "{{ url_for('admin.update_log_delete', entry_id=0) }}".replace('/0', '/');
+var DISCORD_BASE  = "{{ url_for('admin.update_log_post_discord', entry_id=0) }}".replace('/0', '/');
+var ADMIN_USER    = "{{ current_user.username }}";
+
+var CAT_META = {
+  update:       {emoji:'🚀', label:'Server Update',  color:'#6366f1'},
+  hotfix:       {emoji:'🔧', label:'Hotfix',          color:'#f59e0b'},
+  announcement: {emoji:'📢', label:'Announcement',    color:'#3b82f6'},
+  maintenance:  {emoji:'🛠️', label:'Maintenance',     color:'#64748b'},
+  event:        {emoji:'🎉', label:'Event',            color:'#ec4899'},
+};
+
+var TYPE_META = {
+  added:   {icon:'✅', label:'Added'},
+  changed: {icon:'🔄', label:'Changed'},
+  fixed:   {icon:'🛠️', label:'Fixed'},
+  removed: {icon:'❌', label:'Removed'},
+  note:    {icon:'📝', label:'Notes'},
+};
+
+// ── Webhook save ──
+function saveWebhook() {
+  var btn = document.getElementById('wh-save-btn');
+  var url = document.getElementById('wh-url-input').value;
+  btn.disabled = true;
+  fetch(SAVE_WH_URL, {
+    method:'POST', credentials:'same-origin',
+    headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body:'webhook_url=' + encodeURIComponent(url)
+  }).then(function(r){ return r.json(); }).then(function(d) {
+    var msg = document.getElementById('wh-save-msg');
+    msg.style.display = '';
+    setTimeout(function(){ msg.style.display='none'; }, 2500);
+  }).finally(function(){ btn.disabled=false; });
+}
+
+// ── Modal ──
+function openCreate() {
+  document.getElementById('editing-id').value = '';
+  document.getElementById('modal-title-text').textContent = 'New Update Entry';
+  document.getElementById('modal-icon').className = 'ti ti-notes';
+  document.getElementById('modal-save-btn').innerHTML = '<i class="ti ti-send"></i> Save Entry';
+  document.getElementById('f-post-discord').checked = true;
+  document.getElementById('f-post-discord').parentElement.style.display = '';
+  document.getElementById('create-modal').classList.remove('hidden');
+  updatePreview();
+}
+
+function openEdit(id, changes, category, version, title, summary) {
+  // Set edit mode
+  document.getElementById('editing-id').value = id;
+  document.getElementById('modal-title-text').textContent = 'Edit Entry #' + id;
+  document.getElementById('modal-icon').className = 'ti ti-pencil';
+  document.getElementById('modal-save-btn').innerHTML = '<i class="ti ti-device-floppy"></i> Save Changes';
+
+  // Populate fields
+  document.getElementById('f-cat').value   = category || 'update';
+  document.getElementById('f-ver').value   = version  || '';
+  document.getElementById('f-title').value = title    || '';
+  document.getElementById('f-summary').value = summary || '';
+
+  // Re-post to Discord option (shown but unchecked by default on edit)
+  document.getElementById('f-post-discord').checked = false;
+  document.getElementById('f-post-discord').parentElement.style.display = '';
+  var label = document.querySelector('label[for="f-post-discord"]');
+
+  // Rebuild changes list
+  var list = document.getElementById('changes-list');
+  list.innerHTML = '';
+  if (changes && changes.length) {
+    changes.forEach(function(ch) { addChange(ch.type, ch.text); });
+  } else {
+    list.innerHTML = '<div style="font-size:.8rem;color:var(--text-subtle);padding:6px 0;" id="no-changes-hint">Click a button above to add change items…</div>';
+  }
+
+  document.getElementById('create-modal').classList.remove('hidden');
+  updatePreview();
+}
+
+function closeCreate() {
+  document.getElementById('create-modal').classList.add('hidden');
+  document.getElementById('editing-id').value = '';
+  document.getElementById('changes-list').innerHTML =
+    '<div style="font-size:.8rem;color:var(--text-subtle);padding:6px 0;" id="no-changes-hint">Click a button above to add change items…</div>';
+  ['f-title','f-ver','f-summary'].forEach(function(id){ document.getElementById(id).value=''; });
+  document.getElementById('f-cat').value = 'update';
+  document.getElementById('f-post-discord').checked = true;
+  updatePreview();
+}
+
+// ── Change rows ──
+var _changeCounter = 0;
+function addChange(type, prefill) {
+  var hint = document.getElementById('no-changes-hint');
+  if (hint) hint.remove();
+  var id = 'ch-' + (++_changeCounter);
+  var row = document.createElement('div');
+  row.className = 'change-row';
+  row.id = id;
+  var safeVal = (prefill || '').replace(/"/g, '&quot;');
+  row.innerHTML =
+    '<select onchange="updatePreview()">' +
+    Object.keys(TYPE_META).map(function(t){
+      return '<option value="'+t+'"'+(t===type?' selected':'')+'>'+TYPE_META[t].icon+' '+TYPE_META[t].label+'</option>';
+    }).join('') +
+    '</select>' +
+    '<input type="text" placeholder="Describe this change…" oninput="updatePreview()" value="'+safeVal+'" />' +
+    '<button type="button" onclick="document.getElementById(\''+id+'\').remove();updatePreview();" ' +
+    'style="background:none;border:none;color:var(--text-subtle);cursor:pointer;padding:2px 4px;font-size:1rem;line-height:1;">×</button>';
+  document.getElementById('changes-list').appendChild(row);
+  if (!prefill) row.querySelector('input').focus();
+  updatePreview();
+}
+
+function getChanges() {
+  var rows = document.querySelectorAll('#changes-list .change-row');
+  var out = [];
+  rows.forEach(function(r) {
+    var sel = r.querySelector('select');
+    var inp = r.querySelector('input');
+    if (inp && inp.value.trim()) out.push({type: sel.value, text: inp.value.trim()});
+  });
+  return out;
+}
+
+// ── Live preview ──
+function updatePreview() {
+  var cat     = document.getElementById('f-cat').value;
+  var ver     = document.getElementById('f-ver').value.trim();
+  var title   = document.getElementById('f-title').value.trim() || 'Update Title';
+  var summary = document.getElementById('f-summary').value.trim();
+  var meta    = CAT_META[cat] || CAT_META.update;
+  var changes = getChanges();
+
+  // Title
+  var titleStr = meta.emoji + '  ' + title;
+  if (ver) titleStr += '  `v' + ver + '`';
+  document.getElementById('pr-title').textContent = titleStr;
+
+  // Embed border colour
+  document.querySelector('.preview-embed').style.borderLeftColor = meta.color;
+
+  // Description
+  var descEl = document.getElementById('pr-desc');
+  if (summary) { descEl.textContent = summary; descEl.style.display=''; }
+  else descEl.style.display='none';
+
+  // Fields
+  var fieldsEl = document.getElementById('pr-fields');
+  var grouped = {};
+  changes.forEach(function(c){ (grouped[c.type] = grouped[c.type]||[]).push(c.text); });
+  var html = '';
+  ['added','changed','fixed','removed','note'].forEach(function(t) {
+    if (!grouped[t]) return;
+    var m = TYPE_META[t];
+    html += '<div class="em-field-name">' + m.label + '</div>';
+    html += '<div class="em-field-val">' + grouped[t].map(function(x){ return m.icon+' '+escHtml(x); }).join('\n') + '</div>';
+  });
+  fieldsEl.innerHTML = html || '<div style="color:#4d4f58;font-size:.8rem;">No changes added yet</div>';
+
+  // Footer
+  document.getElementById('pr-footer').textContent = meta.label + ' • Posted by ' + ADMIN_USER;
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Submit ──
+function submitCreate(btn) {
+  var title = document.getElementById('f-title').value.trim();
+  if (!title) { document.getElementById('f-title').focus(); showToast('Title is required','error'); return; }
+  var editingId = document.getElementById('editing-id').value;
+  var isEdit = !!editingId;
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 1s linear infinite;"></i> Saving…';
+
+  var payload = {
+    title:        title,
+    version:      document.getElementById('f-ver').value.trim(),
+    summary:      document.getElementById('f-summary').value.trim(),
+    category:     document.getElementById('f-cat').value,
+    changes:      getChanges(),
+    post_discord: document.getElementById('f-post-discord').checked,
+    webhook_url:  document.getElementById('wh-url-input').value.trim(),
+  };
+
+  var url = isEdit ? (EDIT_BASE + editingId + '/edit') : CREATE_URL;
+
+  fetch(url, {
+    method:'POST', credentials:'same-origin',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(payload)
+  }).then(function(r){ return r.json(); }).then(function(d) {
+    if (d.error) { showToast(d.error,'error'); return; }
+    var msg = isEdit ? 'Entry updated' : 'Entry saved';
+    if (d.discord_sent) msg += ' & posted to Discord';
+    showToast(msg + ' ✓','success');
+    closeCreate();
+    setTimeout(function(){ location.reload(); }, 700);
+  }).catch(function(e){ showToast('Save failed: '+e.message,'error'); })
+  .finally(function(){
+    btn.disabled=false;
+    btn.innerHTML = isEdit ? '<i class="ti ti-device-floppy"></i> Save Changes' : '<i class="ti ti-send"></i> Save Entry';
+  });
+}
+
+// ── Accordion ──
+function toggleCard(id) {
+  var body  = document.getElementById('body-'+id);
+  var chev  = document.getElementById('chev-'+id);
+  var open  = body.classList.contains('open');
+  body.classList.toggle('open', !open);
+  if (chev) chev.style.transform = open ? '' : 'rotate(180deg)';
+}
+
+// ── Delete ──
+function deleteEntry(id, btn) {
+  if (!confirm('Delete this entry? This cannot be undone.')) return;
+  btn.disabled = true;
+  fetch(DELETE_BASE + id + '/delete', {method:'POST', credentials:'same-origin'})
+    .then(function(r){ return r.json(); }).then(function(d) {
+      if (d.ok) {
+        var card = document.getElementById('card-'+id);
+        if (card) { card.style.opacity='0'; card.style.transition='opacity .3s'; setTimeout(function(){card.remove();},300); }
+        showToast('Entry deleted','success');
+      }
+    });
+}
+
+// ── Post to Discord ──
+function postToDiscord(id, btn) {
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 1s linear infinite;"></i> Posting…';
+  fetch(DISCORD_BASE + id + '/post-discord', {
+    method:'POST', credentials:'same-origin',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({webhook_url: document.getElementById('wh-url-input').value.trim()})
+  }).then(function(r){ return r.json(); }).then(function(d) {
+    if (d.ok) {
+      showToast('Posted to Discord ✓','success');
+      btn.innerHTML = '<i class="ti ti-brand-discord"></i> Resend';
+    } else {
+      showToast(d.error || 'Failed to post','error');
+      btn.innerHTML = '<i class="ti ti-brand-discord"></i> Post to Discord';
+    }
+  }).catch(function(){ showToast('Network error','error'); btn.innerHTML='<i class="ti ti-brand-discord"></i> Post to Discord'; })
+  .finally(function(){ btn.disabled=false; });
+}
+
+document.addEventListener('click', function(e) {
+  if (e.target.classList.contains('modal-overlay')) closeCreate();
+});
+document.addEventListener('keydown', function(e) {
+  if (e.key==='Escape') closeCreate();
+});
+
+updatePreview();
+</script>
+
+<style>
+@keyframes spin { to { transform:rotate(360deg); } }
+.modal-overlay { position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);padding:1rem; }
+.modal-overlay.hidden { display:none !important; }
+.modal-box { background:var(--surface-2);border:1px solid var(--border);border-radius:14px;padding:1.5rem;width:420px;max-width:100%; }
+</style>
+{% endblock %}

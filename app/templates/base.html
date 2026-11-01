@@ -1,0 +1,1285 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}{{ site.site_name }}{% endblock %} — {{ site.site_name }}</title>
+  <meta name="description" content="{% block meta_desc %}{{ site.site_tagline }}{% endblock %}" />
+
+  <!-- Flowbite + Tailwind -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.3.0/flowbite.min.css" rel="stylesheet" />
+
+  <!-- Fonts: Outfit (display) + JetBrains Mono (data/code) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <!-- Tabler Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.14.0/tabler-icons.min.css" />
+
+  <style>
+    :root {
+      --accent: {{ site.primary_color or '#6366f1' }};
+      --accent-dim: color-mix(in srgb, var(--accent) 20%, transparent);
+      --accent-glow: color-mix(in srgb, var(--accent) 35%, transparent);
+      --surface-0: #0d1117;
+      --surface-1: #161b22;
+      --surface-2: #1c2333;
+      --surface-3: #252d3d;
+      --surface-4: #2d3748;
+      --border: rgba(99,102,241,0.18);
+      --border-strong: rgba(99,102,241,0.32);
+      --text-primary: #e6edf3;
+      --text-muted: #8b949e;
+      --text-subtle: #6e7681;
+      --green: #22c55e;
+      --red: #ef4444;
+      --yellow: #f59e0b;
+      --blue: #3b82f6;
+      --cyan: #06b6d4;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    html {
+      scroll-behavior: smooth;
+      font-size: 13px;
+    }
+
+    body {
+      font-family: 'Outfit', system-ui, sans-serif;
+      background: var(--surface-0);
+      color: var(--text-primary);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+
+    /* Force hidden to always win over inline display styles */
+    .hidden { display: none !important; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--surface-1); }
+    ::-webkit-scrollbar-thumb { background: var(--surface-4); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+    /* Typography */
+    .font-mono { font-family: 'JetBrains Mono', monospace; }
+
+    /* Navigation */
+    #main-nav {
+      background: rgba(22, 27, 34, 0.95);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border-strong);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .nav-logo {
+      font-size: 1rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--text-primary);
+    }
+
+    .nav-logo span {
+      color: var(--accent);
+    }
+
+    .nav-link {
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      font-weight: 500;
+      padding: 0.3rem 0.6rem;
+      border-radius: 5px;
+      transition: all 0.15s ease;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+
+    .nav-link:hover, .nav-link.active {
+      color: var(--text-primary);
+      background: var(--surface-3);
+    }
+
+    .nav-link.active {
+      color: var(--accent);
+      background: var(--accent-dim);
+    }
+
+    /* Sidebar */
+    #sidebar {
+      width: 220px;
+      min-height: calc(100vh - 52px);
+      background: var(--surface-2);
+      border-right: 1px solid var(--border-strong);
+      flex-shrink: 0;
+    }
+
+    .sidebar-section {
+      padding: 0.875rem 0.625rem 0.375rem;
+    }
+
+    .sidebar-label {
+      font-size: 0.6rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-subtle);
+      padding: 0 0.375rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .sidebar-link {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.375rem 0.625rem;
+      border-radius: 6px;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.8rem;
+      font-weight: 500;
+      transition: all 0.15s ease;
+      margin-bottom: 1px;
+    }
+
+    .sidebar-link:hover {
+      color: var(--text-primary);
+      background: var(--surface-4);
+    }
+
+    .sidebar-link.active {
+      color: var(--accent);
+      background: var(--accent-dim);
+      border-left: 2px solid var(--accent);
+      padding-left: calc(0.625rem - 2px);
+    }
+
+    .sidebar-link i {
+      font-size: 1rem;
+      width: 18px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+
+    /* Cards */
+    .card {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.5rem;
+    }
+
+    .card-title {
+      font-size: 0.65rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    /* Stat cards */
+    .stat-card {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: var(--accent);
+      opacity: 0.7;
+    }
+
+    .stat-value {
+      font-size: 1.6rem;
+      font-weight: 800;
+      color: var(--text-primary);
+      letter-spacing: -0.03em;
+      font-family: 'JetBrains Mono', monospace;
+      line-height: 1;
+    }
+
+    .stat-label {
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      font-weight: 500;
+      margin-top: 0.25rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .stat-icon {
+      width: 34px; height: 34px;
+      border-radius: 8px;
+      background: var(--accent-dim);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      color: var(--accent);
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.375rem;
+      padding: 0.4rem 0.875rem;
+      border-radius: 7px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-decoration: none;
+      font-family: 'Outfit', sans-serif;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      opacity: 0.9;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px var(--accent-glow);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-muted);
+      border: 1px solid var(--border-strong);
+    }
+
+    .btn-ghost:hover {
+      background: var(--surface-3);
+      color: var(--text-primary);
+    }
+
+    .btn-danger {
+      background: rgba(239,68,68,0.15);
+      color: var(--red);
+      border: 1px solid rgba(239,68,68,0.25);
+    }
+
+    .btn-danger:hover {
+      background: rgba(239,68,68,0.25);
+    }
+
+    .btn-success {
+      background: rgba(34,197,94,0.15);
+      color: var(--green);
+      border: 1px solid rgba(34,197,94,0.25);
+    }
+
+    .btn-success:hover { background: rgba(34,197,94,0.25); }
+
+    .btn-sm { padding: 0.2rem 0.5rem; font-size: 0.72rem; border-radius: 5px; }
+    .btn-lg { padding: 0.6rem 1.25rem; font-size: 0.9rem; }
+
+    /* Forms */
+    .form-label {
+      display: block;
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 0.3rem;
+    }
+
+    .form-input {
+      width: 100%;
+      background: var(--surface-1);
+      border: 1px solid var(--border-strong);
+      color: var(--text-primary);
+      border-radius: 7px;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.82rem;
+      font-family: 'Outfit', sans-serif;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+      outline: none;
+    }
+
+    .form-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-dim);
+    }
+
+    .form-input::placeholder { color: var(--text-subtle); }
+
+    select.form-input option {
+      background: var(--surface-2);
+    }
+
+    /* Badges */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.2rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 20px;
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .badge-green { background: rgba(34,197,94,0.15); color: var(--green); border: 1px solid rgba(34,197,94,0.2); }
+    .badge-red { background: rgba(239,68,68,0.15); color: var(--red); border: 1px solid rgba(239,68,68,0.2); }
+    .badge-yellow { background: rgba(245,158,11,0.15); color: var(--yellow); border: 1px solid rgba(245,158,11,0.2); }
+    .badge-blue { background: rgba(59,130,246,0.15); color: var(--blue); border: 1px solid rgba(59,130,246,0.2); }
+    .badge-gray { background: rgba(107,114,128,0.15); color: #9ca3af; border: 1px solid rgba(107,114,128,0.2); }
+    .badge-purple { background: rgba(99,102,241,0.15); color: var(--accent); border: 1px solid var(--border-strong); }
+    .badge-orange { background: rgba(249,115,22,0.15); color: #f97316; border: 1px solid rgba(249,115,22,0.2); }
+
+    /* Tables */
+    .data-table { width: 100%; border-collapse: collapse; }
+
+    .data-table th {
+      text-align: left;
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-subtle);
+      padding: 0.5rem 0.875rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .data-table td {
+      padding: 0.625rem 0.875rem;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.8rem;
+      color: var(--text-primary);
+    }
+
+    .data-table tr:last-child td { border-bottom: none; }
+    .data-table tbody tr:hover td { background: var(--surface-4); }
+
+    /* Status dot */
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+      flex-shrink: 0;
+    }
+    .status-dot.online { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .status-dot.offline { background: var(--text-subtle); }
+    .status-dot.warning { background: var(--yellow); }
+
+    /* Alerts / Flash */
+    .flash-message {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.625rem;
+      padding: 0.6rem 0.875rem;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      margin-bottom: 0.5rem;
+    }
+    .flash-success { background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.25); color: #86efac; }
+    .flash-error   { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.25); color: #fca5a5; }
+    .flash-warning { background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.25); color: #fde68a; }
+    .flash-info    { background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.25); color: #93c5fd; }
+
+    /* Tabs */
+    .tab-bar {
+      display: flex;
+      gap: 0.125rem;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 1rem;
+    }
+
+    .tab-btn {
+      padding: 0.45rem 0.875rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      border: none;
+      background: none;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      transition: all 0.15s ease;
+      font-family: 'Outfit', sans-serif;
+    }
+
+    .tab-btn:hover { color: var(--text-primary); }
+
+    .tab-btn.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    /* Live indicator */
+    .live-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 2px 8px;
+      background: rgba(34,197,94,0.12);
+      border: 1px solid rgba(34,197,94,0.25);
+      border-radius: 20px;
+      font-size: 0.65rem;
+      font-weight: 700;
+      color: var(--green);
+      letter-spacing: 0.08em;
+    }
+
+    .live-pulse {
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: var(--green);
+      animation: pulse-dot 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.7); }
+    }
+
+    /* Page header */
+    .page-header {
+      padding: 0.875rem 0 0.625rem;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 1rem;
+    }
+
+    .page-title {
+      font-size: 1.2rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    /* Misc utils */
+    .text-accent { color: var(--accent); }
+    .text-muted { color: var(--text-muted); }
+    .text-subtle { color: var(--text-subtle); }
+    .divider { height: 1px; background: var(--border); margin: 1rem 0; }
+
+    /* Toast notifications */
+    #toast-container {
+      position: fixed;
+      bottom: 1.5rem;
+      right: 1.5rem;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    /* Dropdown menus */
+    .dropdown-menu {
+      background: var(--surface-3);
+      border: 1px solid var(--border-strong);
+      border-radius: 8px;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.7);
+      min-width: 200px;
+      overflow: hidden;
+    }
+
+    .dropdown-item {
+      display: flex;
+      align-items: center;
+      gap: 0.625rem;
+      padding: 0.45rem 0.875rem;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: all 0.1s ease;
+      cursor: pointer;
+      border: none;
+      background: none;
+      width: 100%;
+      font-family: 'Outfit', sans-serif;
+    }
+
+    .dropdown-item:hover {
+      background: var(--surface-4);
+      color: var(--text-primary);
+    }
+
+    .dropdown-item.danger { color: var(--red); }
+    .dropdown-item.danger:hover { background: rgba(239,68,68,0.15); color: var(--red); }
+    .dropdown-divider { height: 1px; background: var(--border-strong); margin: 0.25rem 0; }
+
+    /* Scrollable containers */
+    .scroll-x { overflow-x: auto; }
+
+    /* Avatar */
+    .avatar {
+      border-radius: 50%;
+      object-fit: cover;
+      background: var(--surface-4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+
+    /* Progress bar */
+    .progress-bar {
+      height: 6px;
+      background: var(--surface-4);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 3px;
+      transition: width 0.6s ease;
+    }
+
+    /* Skeleton loader */
+    .skeleton {
+      background: linear-gradient(90deg, var(--surface-3) 25%, var(--surface-4) 50%, var(--surface-3) 75%);
+      background-size: 200% 100%;
+      animation: skeleton-wave 1.5s infinite;
+      border-radius: 6px;
+    }
+
+    @keyframes skeleton-wave {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    /* Mobile */
+    @media (max-width: 768px) {
+      #sidebar { display: none; }
+      .stat-value { font-size: 1.5rem; }
+    }
+
+    /* ── Device-aware responsive system ─────────────────────────────────── */
+
+    /* Mobile device class */
+    body.device-mobile {
+      font-size: 15px;
+    }
+    body.device-mobile #main-nav > div {
+      padding: 0 0.75rem;
+    }
+    body.device-mobile .nav-links-desktop { display: none !important; }
+    body.device-mobile #mobile-menu-btn   { display: flex !important; }
+    body.device-mobile #mobile-nav        { display: block; }
+    body.device-mobile #sidebar           { display: none !important; }
+    body.device-mobile .scroll-x          { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    body.device-mobile .data-table td,
+    body.device-mobile .data-table th     { font-size: 0.75rem; padding: 0.5rem 0.6rem; white-space: nowrap; }
+    body.device-mobile .stat-card         { padding: 0.75rem; }
+    body.device-mobile .stat-value        { font-size: 1.3rem; }
+    body.device-mobile .page-title        { font-size: 1.2rem; }
+    body.device-mobile .btn               { padding: 0.5rem 0.75rem; font-size: 0.82rem; min-height: 40px; }
+    body.device-mobile .btn-sm            { padding: 0.45rem 0.7rem; font-size: 0.78rem; min-height: 36px; }
+    body.device-mobile .form-input        { font-size: 16px; /* prevents iOS zoom */ padding: 0.6rem 0.75rem; min-height: 44px; }
+    body.device-mobile .card              { padding: 0.875rem; border-radius: 10px; }
+    body.device-mobile main               { padding: 0.75rem !important; }
+    body.device-mobile [style*="grid-template-columns: 1fr 1fr"] { grid-template-columns: 1fr !important; }
+    body.device-mobile [style*="grid-template-columns: 2fr 1fr"] { grid-template-columns: 1fr !important; }
+    body.device-mobile [style*="repeat(auto-fit"] { grid-template-columns: 1fr 1fr !important; }
+
+    /* Tablet device class */
+    body.device-tablet {
+      font-size: 14px;
+    }
+    body.device-tablet .nav-links-desktop { display: none !important; }
+    body.device-tablet #mobile-menu-btn   { display: flex !important; }
+    body.device-tablet #mobile-nav        { display: block; }
+    body.device-tablet #sidebar           { width: 200px; }
+    body.device-tablet .data-table td,
+    body.device-tablet .data-table th     { font-size: 0.78rem; padding: 0.5rem 0.75rem; }
+    body.device-tablet .scroll-x          { overflow-x: auto; }
+    body.device-tablet .btn               { min-height: 38px; }
+    body.device-tablet .form-input        { font-size: 15px; min-height: 42px; }
+    body.device-tablet [style*="grid-template-columns: 2fr 1fr"] { grid-template-columns: 1fr !important; }
+
+    /* Mobile nav overlay */
+    #mobile-nav {
+      display: none;
+      position: fixed;
+      top: 52px;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: var(--surface-1);
+      z-index: 9998;
+      overflow-y: auto;
+      padding: 1rem;
+      border-top: 1px solid var(--border);
+    }
+    #mobile-nav .mobile-nav-link {
+      display: flex;
+      align-items: center;
+      gap: 0.875rem;
+      padding: 0.875rem 1rem;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 1rem;
+      font-weight: 500;
+      border-radius: 10px;
+      margin-bottom: 4px;
+      transition: all 0.15s;
+    }
+    #mobile-nav .mobile-nav-link:hover,
+    #mobile-nav .mobile-nav-link.active { background: var(--surface-3); color: var(--text-primary); }
+    #mobile-nav .mobile-nav-link i { font-size: 1.2rem; width: 24px; text-align: center; }
+    #mobile-nav .mobile-nav-section {
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-subtle);
+      padding: 0.75rem 1rem 0.375rem;
+    }
+    #mobile-nav .mobile-nav-divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 0.75rem 0;
+    }
+    #mobile-menu-btn {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+
+    /* Device picker overlay */
+    #device-picker {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.92);
+      z-index: 99999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(6px);
+      padding: 1.5rem;
+    }
+    #device-picker.hidden { display: none !important; }
+    .device-option {
+      background: var(--surface-2);
+      border: 2px solid var(--border);
+      border-radius: 16px;
+      padding: 2rem 1.5rem;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.2s ease;
+      flex: 1;
+      max-width: 200px;
+    }
+    .device-option:hover {
+      border-color: var(--accent);
+      background: var(--surface-3);
+      transform: translateY(-3px);
+    }
+    .device-option .device-icon {
+      font-size: 2.5rem;
+      margin-bottom: 0.75rem;
+      display: block;
+    }
+    .device-option .device-label {
+      font-weight: 700;
+      font-size: 1rem;
+      color: var(--text-primary);
+      margin-bottom: 0.375rem;
+    }
+    .device-option .device-desc {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    /* Charts placeholder */
+    .chart-container {
+      position: relative;
+      width: 100%;
+    }
+  </style>
+
+  {% block head %}{% endblock %}
+</head>
+<body>
+
+<!-- ─── Device Picker (shown once per session) ──────────────────────────── -->
+<div id="device-picker" class="hidden">
+  <div style="text-align:center;max-width:640px;width:100%;">
+    <div style="font-size:1.75rem;font-weight:800;color:var(--text-primary);margin-bottom:0.5rem;">
+      Welcome to {{ site.site_name }}
+    </div>
+    <div style="font-size:0.9rem;color:var(--text-muted);margin-bottom:2rem;">
+      What device are you using so we can give you the best experience?
+    </div>
+    <div style="display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;">
+      <div class="device-option" onclick="setDevice('mobile')">
+        <span class="device-icon">📱</span>
+        <div class="device-label">Phone</div>
+        <div class="device-desc">Optimised layout &amp; larger touch targets</div>
+      </div>
+      <div class="device-option" onclick="setDevice('tablet')">
+        <span class="device-icon">📋</span>
+        <div class="device-label">Tablet</div>
+        <div class="device-desc">Balanced layout for medium screens</div>
+      </div>
+      <div class="device-option" onclick="setDevice('desktop')">
+        <span class="device-icon">🖥️</span>
+        <div class="device-label">Desktop</div>
+        <div class="device-desc">Full layout with sidebar &amp; tables</div>
+      </div>
+    </div>
+    <button onclick="setDevice('desktop')" style="margin-top:1.5rem;background:none;border:none;color:var(--text-subtle);font-size:0.8rem;cursor:pointer;text-decoration:underline;">
+      Skip — use default layout
+    </button>
+  </div>
+</div>
+
+<!-- ─── Mobile / Tablet Nav Menu ──────────────────────────────────────────── -->
+<div id="mobile-nav" style="display:none;">
+  <div class="mobile-nav-section">Navigation</div>
+  <a href="{{ url_for('main.index') }}" class="mobile-nav-link {% if request.endpoint == 'main.index' %}active{% endif %}">
+    <i class="ti ti-home"></i> Home
+  </a>
+  <a href="{{ url_for('applications.list_types') }}" class="mobile-nav-link {% if request.endpoint and 'applications' in request.endpoint %}active{% endif %}">
+    <i class="ti ti-file-text"></i> Apply
+  </a>
+  {% if current_user.is_authenticated %}
+  <a href="{{ url_for('applications.my_applications') }}" class="mobile-nav-link">
+    <i class="ti ti-files"></i> My Applications
+  </a>
+  <a href="{{ url_for('reports.my_reports') }}" class="mobile-nav-link">
+    <i class="ti ti-flag"></i> My Reports
+  </a>
+  <a href="{{ url_for('interviews.my_interviews') }}" class="mobile-nav-link {% if request.endpoint and 'interviews' in request.endpoint %}active{% endif %}">
+    <i class="ti ti-calendar-event"></i> My Interviews
+  </a>
+  <a href="{{ url_for('profile.notifications') }}" class="mobile-nav-link">
+    <i class="ti ti-bell"></i> Notifications
+    {% if unread_notifications > 0 %}<span style="margin-left:auto;background:var(--red);color:#fff;border-radius:10px;padding:1px 7px;font-size:0.7rem;">{{ unread_notifications }}</span>{% endif %}
+  </a>
+  <hr class="mobile-nav-divider">
+  <div class="mobile-nav-section">Account</div>
+  <a href="{{ url_for('profile.view', username=current_user.username) }}" class="mobile-nav-link">
+    <i class="ti ti-user"></i> Profile
+  </a>
+  <a href="{{ url_for('profile.settings') }}" class="mobile-nav-link">
+    <i class="ti ti-settings"></i> Settings
+  </a>
+  {% if current_user.is_admin %}
+  <hr class="mobile-nav-divider">
+  <div class="mobile-nav-section">Admin</div>
+  <a href="{{ url_for('admin.dashboard') }}" class="mobile-nav-link">
+    <i class="ti ti-layout-dashboard"></i> Dashboard
+  </a>
+  <a href="{{ url_for('admin.users') }}" class="mobile-nav-link">
+    <i class="ti ti-users"></i> Users
+  </a>
+  <a href="{{ url_for('admin.reviews') }}" class="mobile-nav-link">
+    <i class="ti ti-file-check"></i> Review Queue
+  </a>
+  <a href="{{ url_for('analytics.dashboard') }}" class="mobile-nav-link">
+    <i class="ti ti-chart-bar"></i> Analytics
+  </a>
+  {% endif %}
+  <hr class="mobile-nav-divider">
+  <a href="{{ url_for('auth.logout') }}" class="mobile-nav-link" style="color:var(--red);">
+    <i class="ti ti-logout"></i> Sign Out
+  </a>
+  {% else %}
+  <hr class="mobile-nav-divider">
+  <a href="{{ url_for('auth.login') }}" class="mobile-nav-link">
+    <i class="ti ti-login"></i> Sign In
+  </a>
+  <a href="{{ url_for('auth.register') }}" class="mobile-nav-link">
+    <i class="ti ti-user-plus"></i> Register
+  </a>
+  {% endif %}
+
+  <hr class="mobile-nav-divider">
+  <div class="mobile-nav-section">Switch Layout</div>
+  <div style="display:flex;gap:0.5rem;padding:0.5rem 1rem;">
+    <button onclick="setDevice('mobile')" id="switch-mobile" class="btn btn-ghost btn-sm" style="flex:1;justify-content:center;">📱 Phone</button>
+    <button onclick="setDevice('tablet')" id="switch-tablet" class="btn btn-ghost btn-sm" style="flex:1;justify-content:center;">📋 Tablet</button>
+    <button onclick="setDevice('desktop')" id="switch-desktop" class="btn btn-ghost btn-sm" style="flex:1;justify-content:center;">🖥️ Desktop</button>
+  </div>
+</div>
+
+<!-- ─── Navigation ─────────────────────────────────────────────────────────── -->
+<nav id="main-nav">
+  <div style="max-width:1400px;margin:0 auto;padding:0 1.25rem;display:flex;align-items:center;height:52px;gap:1.25rem;">
+
+    <!-- Logo -->
+    <a href="{{ url_for('main.index') }}" class="nav-logo" style="text-decoration:none;display:flex;align-items:center;gap:8px;flex-shrink:0;">
+      {% if site.site_logo %}
+        <img src="{{ site.site_logo }}" alt="{{ site.site_name }}" style="height:28px;" />
+      {% else %}
+        <div style="width:28px;height:28px;background:var(--accent);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:0.8rem;font-weight:900;color:#fff;">CF</div>
+      {% endif %}
+      <span>{{ site.site_name }}</span>
+    </a>
+
+    <!-- Hamburger (mobile/tablet only) -->
+    <button id="mobile-menu-btn" onclick="toggleMobileNav()" aria-label="Menu">
+      <i class="ti ti-menu-2" style="font-size:1.2rem;"></i>
+    </button>
+
+    <!-- Nav links (hidden on mobile/tablet) -->
+    <div class="nav-links-desktop" style="display:flex;align-items:center;gap:0.25rem;flex:1;">
+      <a href="{{ url_for('main.index') }}" class="nav-link {% if request.endpoint == 'main.index' %}active{% endif %}">
+        <i class="ti ti-home"></i> Home
+      </a>
+      <a href="{{ url_for('applications.list_types') }}" class="nav-link {% if request.endpoint and 'applications' in request.endpoint %}active{% endif %}">
+        <i class="ti ti-file-text"></i> Apply
+      </a>
+      {% if current_user.is_authenticated and current_user.is_admin %}
+      <a href="{{ url_for('analytics.dashboard') }}" class="nav-link {% if request.endpoint and 'analytics' in request.endpoint %}active{% endif %}">
+        <i class="ti ti-chart-bar"></i> Analytics
+      </a>
+      {% endif %}
+      {% if current_user.is_authenticated and current_user.is_admin %}
+      <a href="{{ url_for('admin.dashboard') }}" class="nav-link {% if request.endpoint and 'admin' in request.endpoint %}active{% endif %}">
+        <i class="ti ti-settings"></i> Admin
+      </a>
+      {% endif %}
+    </div>
+
+    <!-- Right side -->
+    <div style="display:flex;align-items:center;gap:0.75rem;flex-shrink:0;">
+
+      {% if current_user.is_authenticated %}
+        <!-- Notifications -->
+        <div class="relative" style="position:relative;">
+          <button onclick="document.getElementById('notif-dropdown').classList.toggle('hidden')"
+                  style="position:relative;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-muted);">
+            <i class="ti ti-bell" style="font-size:1.1rem;"></i>
+            {% if unread_notifications > 0 %}
+            <span style="position:absolute;top:-4px;right:-4px;background:var(--red);color:#fff;font-size:0.6rem;font-weight:700;border-radius:50%;width:16px;height:16px;display:flex;align-items:center;justify-content:center;">{{ unread_notifications }}</span>
+            {% endif %}
+          </button>
+          <div id="notif-dropdown" class="dropdown-menu hidden" style="position:absolute;right:0;top:calc(100% + 8px);width:320px;">
+            <div style="padding:0.75rem 1rem;border-bottom:1px solid var(--border);font-size:0.8rem;font-weight:700;color:var(--text-muted);">NOTIFICATIONS</div>
+            <div id="notif-list" style="max-height:300px;overflow-y:auto;padding:0.375rem;">
+              <p style="padding:1rem;color:var(--text-subtle);font-size:0.875rem;text-align:center;">Loading...</p>
+            </div>
+            <div style="padding:0.5rem;border-top:1px solid var(--border);">
+              <a href="{{ url_for('profile.notifications') }}" class="dropdown-item" style="justify-content:center;font-size:0.8rem;">View all</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- User menu -->
+        <div style="position:relative;">
+          <button onclick="document.getElementById('user-dropdown').classList.toggle('hidden')"
+                  style="display:flex;align-items:center;gap:0.5rem;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:0.375rem 0.625rem;cursor:pointer;">
+            {% if current_user.discord_avatar_url %}
+              <img src="{{ current_user.discord_avatar_url }}" alt="{{ current_user.username }}" class="avatar" style="width:24px;height:24px;" />
+            {% else %}
+              <div class="avatar" style="width:24px;height:24px;background:var(--accent-dim);font-size:0.7rem;">{{ current_user.username[0].upper() }}</div>
+            {% endif %}
+            <span style="font-size:0.875rem;font-weight:600;color:var(--text-primary);">{{ current_user.username }}</span>
+            {% if current_user.primary_role %}
+              <span class="badge" style="background:{{ current_user.primary_role.color }}22;color:{{ current_user.primary_role.color }};border-color:{{ current_user.primary_role.color }}44;font-size:0.6rem;">{{ current_user.primary_role.display_name }}</span>
+            {% endif %}
+            <i class="ti ti-chevron-down" style="font-size:0.875rem;color:var(--text-muted);"></i>
+          </button>
+          <div id="user-dropdown" class="dropdown-menu hidden" style="position:absolute;right:0;top:calc(100%+8px);margin-top:8px;">
+            <a href="{{ url_for('profile.view', username=current_user.username) }}" class="dropdown-item">
+              <i class="ti ti-user"></i> Profile
+            </a>
+            <a href="{{ url_for('profile.settings') }}" class="dropdown-item">
+              <i class="ti ti-settings"></i> Settings
+            </a>
+            <a href="{{ url_for('applications.my_applications') }}" class="dropdown-item">
+              <i class="ti ti-file-text"></i> My Applications
+            </a>
+            <a href="{{ url_for('reports.my_reports') }}" class="dropdown-item">
+              <i class="ti ti-flag"></i> My Reports
+            </a>
+            <a href="{{ url_for('interviews.my_interviews') }}" class="dropdown-item">
+              <i class="ti ti-calendar-event"></i> My Interviews
+            </a>
+            {% if current_user.is_admin %}
+              <div class="dropdown-divider"></div>
+              <a href="{{ url_for('admin.dashboard') }}" class="dropdown-item">
+                <i class="ti ti-shield"></i> Admin Panel
+              </a>
+            {% endif %}
+            <div class="dropdown-divider"></div>
+            <a href="{{ url_for('auth.logout') }}" class="dropdown-item danger">
+              <i class="ti ti-logout"></i> Sign Out
+            </a>
+          </div>
+        </div>
+
+      {% else %}
+        <a href="{{ url_for('auth.login') }}" class="btn btn-ghost btn-sm">Sign In</a>
+        <a href="{{ url_for('auth.register') }}" class="btn btn-primary btn-sm">Register</a>
+      {% endif %}
+    </div>
+  </div>
+</nav>
+
+<!-- ─── Flash Messages ────────────────────────────────────────────────────── -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    <div style="max-width:1400px;margin:0.75rem auto 0;padding:0 1.25rem;" id="flash-container">
+      {% for category, message in messages %}
+        <div class="flash-message flash-{{ category }}" id="flash-{{ loop.index }}">
+          <i class="ti ti-{% if category == 'success' %}circle-check{% elif category == 'error' %}circle-x{% elif category == 'warning' %}alert-triangle{% else %}info-circle{% endif %}" style="font-size:1.1rem;flex-shrink:0;margin-top:1px;"></i>
+          <span>{{ message }}</span>
+          <button onclick="this.parentElement.remove()" style="margin-left:auto;background:none;border:none;cursor:pointer;color:inherit;opacity:0.6;font-size:1rem;flex-shrink:0;">×</button>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endwith %}
+
+<!-- ─── Page Content ───────────────────────────────────────────────────────── -->
+{% block content %}{% endblock %}
+
+<!-- ─── Toast Container ───────────────────────────────────────────────────── -->
+<div id="toast-container"></div>
+
+<!-- Scripts -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.3.0/flowbite.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<script>
+  // Auto-dismiss flash messages
+  setTimeout(() => {
+    document.querySelectorAll('.flash-message').forEach(el => {
+      el.style.opacity = '0';
+      el.style.transition = 'opacity 0.3s ease';
+      setTimeout(() => el.remove(), 300);
+    });
+  }, 5000);
+
+  // Close dropdowns on outside click
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('#user-dropdown') && !e.target.closest('[onclick*="user-dropdown"]')) {
+      document.getElementById('user-dropdown')?.classList.add('hidden');
+    }
+    if (!e.target.closest('#notif-dropdown') && !e.target.closest('[onclick*="notif-dropdown"]')) {
+      document.getElementById('notif-dropdown')?.classList.add('hidden');
+    }
+  });
+
+  // Load notifications
+  {% if current_user.is_authenticated %}
+  document.querySelector('[onclick*="notif-dropdown"]')?.addEventListener('click', () => {
+    fetch('/api/notifications')
+      .then(r => r.json())
+      .then(data => {
+        const list = document.getElementById('notif-list');
+        if (!data.notifications?.length) {
+          list.innerHTML = '<p style="padding:1rem;color:var(--text-subtle);font-size:0.875rem;text-align:center;">No notifications</p>';
+          return;
+        }
+        list.innerHTML = data.notifications.slice(0, 5).map(n => `
+          <a href="${n.link || '#'}" class="dropdown-item" style="flex-direction:column;align-items:flex-start;gap:0.125rem;opacity:${n.is_read ? 0.6 : 1};">
+            <span style="font-weight:600;font-size:0.8rem;color:var(--text-primary);">${n.title}</span>
+            <span style="font-size:0.75rem;">${n.message}</span>
+          </a>
+        `).join('');
+      });
+  });
+  {% endif %}
+
+  // Toast utility
+  function showToast(message, type = 'info') {
+    const colors = { success: 'var(--green)', error: 'var(--red)', warning: 'var(--yellow)', info: 'var(--blue)' };
+    const icons = { success: 'circle-check', error: 'circle-x', warning: 'alert-triangle', info: 'info-circle' };
+    const toast = document.createElement('div');
+    toast.style.cssText = `
+      background:var(--surface-2);border:1px solid var(--border-strong);
+      border-left:3px solid ${colors[type]};border-radius:10px;
+      padding:0.75rem 1rem;display:flex;align-items:center;gap:0.625rem;
+      font-size:0.875rem;color:var(--text-primary);min-width:280px;max-width:380px;
+      box-shadow:0 8px 24px rgba(0,0,0,0.4);animation:slideInRight 0.3s ease;
+    `;
+    toast.innerHTML = `<i class="ti ti-${icons[type]}" style="color:${colors[type]};font-size:1.1rem;"></i><span>${message}</span>`;
+    document.getElementById('toast-container').appendChild(toast);
+    setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity 0.3s'; setTimeout(() => toast.remove(), 300); }, 4000);
+  }
+
+  // Chart.js global defaults
+  if (typeof Chart !== 'undefined') {
+    Chart.defaults.color = '#7d8590';
+    Chart.defaults.borderColor = 'rgba(99,102,241,0.12)';
+    Chart.defaults.font.family = "'Outfit', sans-serif";
+  }
+</script>
+
+<style>
+  @keyframes slideInRight {
+    from { opacity: 0; transform: translateX(20px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+</style>
+
+{% block scripts %}{% endblock %}
+
+<script>
+// ── Device system ─────────────────────────────────────────────────────────────
+(function() {
+  var stored = sessionStorage.getItem('cfrp_device');
+  if (stored) {
+    applyDevice(stored, false);
+  } else {
+    // Show picker on first visit
+    document.getElementById('device-picker').classList.remove('hidden');
+  }
+})();
+
+function applyDevice(device, save) {
+  document.body.classList.remove('device-mobile', 'device-tablet', 'device-desktop');
+  document.body.classList.add('device-' + device);
+  // Update active state on switcher buttons
+  ['mobile','tablet','desktop'].forEach(function(d) {
+    var btn = document.getElementById('switch-' + d);
+    if (btn) btn.style.background = d === device ? 'var(--accent-dim)' : '';
+  });
+  if (save !== false) sessionStorage.setItem('cfrp_device', device);
+}
+
+function setDevice(device) {
+  applyDevice(device, true);
+  document.getElementById('device-picker').classList.add('hidden');
+  // Close mobile nav after switching to desktop
+  if (device === 'desktop') {
+    var mn = document.getElementById('mobile-nav');
+    if (mn) mn.style.display = 'none';
+  }
+}
+
+function toggleMobileNav() {
+  var mn = document.getElementById('mobile-nav');
+  var btn = document.getElementById('mobile-menu-btn');
+  if (!mn) return;
+  var open = mn.style.display !== 'none' && mn.style.display !== '';
+  mn.style.display = open ? 'none' : 'block';
+  btn.innerHTML = open
+    ? '<i class="ti ti-menu-2" style="font-size:1.2rem;"></i>'
+    : '<i class="ti ti-x"       style="font-size:1.2rem;"></i>';
+}
+</script>
+
+{% if current_user.is_authenticated %}
+<!-- ── Idle Timeout ─────────────────────────────────────────────────────── -->
+<style>
+  #idle-overlay {
+    display: none;
+    position: fixed; inset: 0; z-index: 99999;
+    background: rgba(6, 8, 15, 0.88);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    align-items: center; justify-content: center;
+  }
+  #idle-overlay.visible { display: flex; }
+  #idle-box {
+    background: #0d1117;
+    border: 1px solid #1e2535;
+    border-radius: 16px;
+    padding: 2.5rem 2rem;
+    text-align: center;
+    width: 340px;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+    animation: idleSlideUp .25s ease;
+  }
+  @keyframes idleSlideUp {
+    from { opacity:0; transform: translateY(16px); }
+    to   { opacity:1; transform: translateY(0); }
+  }
+  #idle-icon {
+    width: 52px; height: 52px; border-radius: 50%;
+    background: rgba(248,113,113,.1);
+    border: 1px solid rgba(248,113,113,.25);
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 1.25rem;
+    font-size: 1.4rem;
+  }
+  #idle-title {
+    font-size: 1rem; font-weight: 700;
+    color: #e2e8f0; margin-bottom: .4rem;
+  }
+  #idle-sub {
+    font-size: .82rem; color: #64748b; margin-bottom: 1.5rem; line-height: 1.5;
+  }
+  #idle-ring {
+    position: relative; width: 72px; height: 72px;
+    margin: 0 auto 1.25rem;
+  }
+  #idle-ring svg { transform: rotate(-90deg); }
+  #idle-ring circle.track {
+    fill: none; stroke: #1e2535; stroke-width: 4;
+  }
+  #idle-ring circle.progress {
+    fill: none; stroke: #f87171; stroke-width: 4;
+    stroke-linecap: round;
+    stroke-dasharray: 188.4;
+    stroke-dashoffset: 0;
+    transition: stroke-dashoffset .9s linear, stroke .5s;
+  }
+  #idle-count {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.3rem; font-weight: 800; color: #f87171;
+    font-variant-numeric: tabular-nums;
+  }
+  #idle-stay {
+    width: 100%; padding: .65rem;
+    background: #6ee7b7; color: #0a0d14;
+    border: none; border-radius: 8px;
+    font-size: .875rem; font-weight: 700;
+    cursor: pointer; transition: opacity .15s;
+    margin-bottom: .6rem;
+  }
+  #idle-stay:hover { opacity: .88; }
+  #idle-logout-now {
+    width: 100%; padding: .55rem;
+    background: transparent;
+    color: #64748b; border: 1px solid #1e2535;
+    border-radius: 8px; font-size: .8rem;
+    cursor: pointer; transition: all .15s;
+  }
+  #idle-logout-now:hover { color: #f87171; border-color: rgba(248,113,113,.35); }
+</style>
+
+<div id="idle-overlay" role="dialog" aria-modal="true" aria-label="Session timeout warning">
+  <div id="idle-box">
+    <div id="idle-icon">⏱</div>
+    <div id="idle-title">Still there?</div>
+    <div id="idle-sub">You've been inactive. We'll log you out in</div>
+    <div id="idle-ring">
+      <svg viewBox="0 0 64 64" width="72" height="72">
+        <circle class="track"    cx="32" cy="32" r="30"/>
+        <circle class="progress" cx="32" cy="32" r="30" id="idle-arc"/>
+      </svg>
+      <div id="idle-count">30</div>
+    </div>
+    <button id="idle-stay" onclick="idleReset()">Keep me logged in</button>
+    <button id="idle-logout-now" onclick="idleLogout()">Log out now</button>
+  </div>
+</div>
+
+<script>
+(function() {
+  const IDLE_TIMEOUT   = 4.5 *60* 1000;   // 30 s before warning appears
+  const WARNING_SECS   = 4.5 *60* 1000;         // countdown seconds shown in warning
+  const LOGOUT_URL     = '{{ url_for("auth.logout") }}';
+  const CIRCUMFERENCE  = 2 * Math.PI * 30;  // svg circle r=30 → ~188.4
+
+  const overlay  = document.getElementById('idle-overlay');
+  const countEl  = document.getElementById('idle-count');
+  const arcEl    = document.getElementById('idle-arc');
+
+  let idleTimer    = null;
+  let countTimer   = null;
+  let remaining    = WARNING_SECS;
+  let warningShown = false;
+
+  arcEl.style.strokeDasharray  = CIRCUMFERENCE;
+  arcEl.style.strokeDashoffset = 0;
+
+  function startIdleTimer() {
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(showWarning, IDLE_TIMEOUT);
+  }
+
+  function showWarning() {
+    warningShown = true;
+    remaining    = WARNING_SECS;
+    overlay.classList.add('visible');
+    updateRing();
+    countTimer = setInterval(tick, 1000);
+  }
+
+  function tick() {
+    remaining--;
+    updateRing();
+    if (remaining <= 0) {
+      clearInterval(countTimer);
+      idleLogout();
+    }
+  }
+
+  function updateRing() {
+    countEl.textContent = remaining;
+    const pct    = remaining / WARNING_SECS;
+    const offset = CIRCUMFERENCE * (1 - pct);
+    arcEl.style.strokeDashoffset = offset;
+    // Colour shifts red → amber as time runs out in reverse (green at start)
+    if (pct > 0.6)      arcEl.style.stroke = '#6ee7b7';
+    else if (pct > 0.3) arcEl.style.stroke = '#fbbf24';
+    else                arcEl.style.stroke = '#f87171';
+    document.getElementById('idle-count').style.color = arcEl.style.stroke;
+  }
+
+  window.idleReset = function() {
+    clearInterval(countTimer);
+    overlay.classList.remove('visible');
+    warningShown = false;
+    startIdleTimer();
+  };
+
+  window.idleLogout = function() {
+    clearInterval(countTimer);
+    clearTimeout(idleTimer);
+    window.location.href = LOGOUT_URL;
+  };
+
+  // Activity events that reset the timer
+  const ACTIVITY_EVENTS = ['mousemove','mousedown','keydown','touchstart','scroll','click','wheel'];
+  ACTIVITY_EVENTS.forEach(evt => {
+    document.addEventListener(evt, () => {
+      if (!warningShown) startIdleTimer();
+    }, { passive: true });
+  });
+
+  // Sync across tabs — if another tab logs out, this one follows
+  window.addEventListener('storage', e => {
+    if (e.key === 'cfrp_idle_logout') idleLogout();
+  });
+
+  window.addEventListener('beforeunload', () => {
+    if (warningShown && remaining <= 0) {
+      localStorage.setItem('cfrp_idle_logout', Date.now());
+    }
+  });
+
+  startIdleTimer();
+})();
+</script>
+{% endif %}
+<!-- ── /Idle Timeout ───────────────────────────────────────────────────── -->
+
+</body>
+</html>

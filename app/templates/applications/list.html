@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Apply{% endblock %}
+{% block content %}
+<div style="max-width:900px;margin:0 auto;padding:2rem 1.5rem;">
+  <div class="page-header">
+    <h1 class="page-title">Whitelist Applications</h1>
+    <p style="color:var(--text-muted);font-size:0.9rem;margin-top:0.25rem;">Select an application type to get started</p>
+  </div>
+
+  {% if not current_user.is_authenticated %}
+  <div class="card" style="text-align:center;padding:2.5rem;margin-bottom:1.5rem;border-color:var(--border-strong);">
+    <i class="ti ti-lock" style="font-size:2.5rem;color:var(--text-subtle);display:block;margin-bottom:0.875rem;"></i>
+    <div style="font-size:1rem;font-weight:600;margin-bottom:0.5rem;">Login Required</div>
+    <p style="color:var(--text-muted);margin-bottom:1.25rem;">You need an account to apply for whitelist access.</p>
+    <div style="display:flex;gap:0.75rem;justify-content:center;">
+      <a href="{{ url_for('auth.register') }}" class="btn btn-primary">Create Account</a>
+      <a href="{{ url_for('auth.login') }}" class="btn btn-ghost">Sign In</a>
+    </div>
+  </div>
+  {% elif not current_user.discord_id %}
+  <div class="card" style="padding:1.25rem;margin-bottom:1.5rem;border-color:rgba(88,101,242,0.4);background:rgba(88,101,242,0.05);">
+    <div style="display:flex;align-items:center;gap:0.875rem;">
+      <i class="ti ti-brand-discord" style="font-size:1.5rem;color:#5865F2;flex-shrink:0;"></i>
+      <div style="flex:1;">
+        <div style="font-weight:700;">Connect Discord to Apply</div>
+        <div style="font-size:0.85rem;color:var(--text-muted);">Most applications require a connected Discord account.</div>
+      </div>
+      <a href="{{ url_for('discord_oauth.connect') }}" class="btn btn-sm" style="background:#5865F2;color:#fff;flex-shrink:0;">Connect Discord</a>
+    </div>
+  </div>
+  {% endif %}
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem;">
+    {% for app_type in types %}
+    {% set user_app = user_apps.get(app_type.id) %}
+    <div class="card" style="border-color:{{ app_type.color }}33;display:flex;flex-direction:column;">
+      <div style="display:flex;align-items:center;gap:0.875rem;margin-bottom:0.875rem;">
+        <div style="width:44px;height:44px;border-radius:12px;background:{{ app_type.color }}22;display:flex;align-items:center;justify-content:center;color:{{ app_type.color }};font-size:1.3rem;flex-shrink:0;">
+          <i class="ti ti-{{ app_type.icon or 'file-text' }}"></i>
+        </div>
+        <div>
+          <div style="font-weight:700;font-size:0.95rem;">{{ app_type.name }}</div>
+          <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:2px;">
+            {% if app_type.requires_discord %}<span class="badge badge-blue" style="font-size:0.6rem;"><i class="ti ti-brand-discord"></i> Discord</span>{% endif %}
+            {% if app_type.auto_approve %}<span class="badge badge-green" style="font-size:0.6rem;">Auto-approve</span>{% endif %}
+          </div>
+        </div>
+      </div>
+      {% if app_type.description %}
+      <p style="font-size:0.85rem;color:var(--text-muted);flex:1;line-height:1.6;margin-bottom:1rem;">{{ app_type.description }}</p>
+      {% endif %}
+      {% if user_app %}
+        <div class="badge badge-{{ user_app.status_badge_class }}" style="justify-content:center;padding:0.5rem;border-radius:8px;font-size:0.75rem;margin-bottom:0.5rem;">
+          {{ user_app.status.replace('_',' ').title() }}
+        </div>
+        <a href="{{ url_for('applications.view_application', app_id=user_app.id) }}" class="btn btn-ghost" style="width:100%;justify-content:center;">View Application</a>
+      {% else %}
+        <a href="{{ url_for('applications.apply', slug=app_type.slug) }}" class="btn btn-primary" style="width:100%;justify-content:center;">
+          Apply Now <i class="ti ti-arrow-right"></i>
+        </a>
+      {% endif %}
+    </div>
+    {% else %}
+    <div style="grid-column:1/-1;text-align:center;padding:3rem;color:var(--text-subtle);">
+      <i class="ti ti-file-off" style="font-size:2.5rem;display:block;margin-bottom:0.875rem;"></i>
+      No application types are currently open.
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

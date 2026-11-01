@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Notifications{% endblock %}
+{% block content %}
+<div style="max-width:760px;margin:0 auto;padding:2rem 1.5rem;">
+  <div class="page-header">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <h1 class="page-title">Notifications</h1>
+      <button class="btn btn-ghost btn-sm" onclick="markAllRead()"><i class="ti ti-checks"></i> Mark All Read</button>
+    </div>
+  </div>
+
+  {% if notifications %}
+  <div style="display:flex;flex-direction:column;gap:0.625rem;">
+    {% for notif in notifications %}
+    <div class="card" style="opacity:{% if notif.is_read %}0.65{% else %}1{% endif %}; border-left:3px solid {% if notif.type=='success' %}var(--green){% elif notif.type=='error' %}var(--red){% elif notif.type=='warning' %}var(--yellow){% else %}var(--accent){% endif %}; padding:1rem 1.25rem;">
+      <div style="display:flex;align-items:flex-start;gap:0.875rem;">
+        <div style="width:36px;height:36px;border-radius:10px;background:{% if notif.type=='success' %}rgba(34,197,94,0.15){% elif notif.type=='error' %}rgba(239,68,68,0.15){% elif notif.type=='warning' %}rgba(245,158,11,0.15){% else %}var(--accent-dim){% endif %};display:flex;align-items:center;justify-content:center;font-size:1.1rem;color:{% if notif.type=='success' %}var(--green){% elif notif.type=='error' %}var(--red){% elif notif.type=='warning' %}var(--yellow){% else %}var(--accent){% endif %};flex-shrink:0;">
+          <i class="ti ti-{% if notif.type=='success' %}circle-check{% elif notif.type=='error' %}circle-x{% elif notif.type=='warning' %}alert-triangle{% else %}info-circle{% endif %}"></i>
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:700;font-size:0.9rem;margin-bottom:0.25rem;">{{ notif.title }}</div>
+          <div style="font-size:0.85rem;color:var(--text-muted);">{{ notif.message }}</div>
+        </div>
+        <div style="font-size:0.75rem;color:var(--text-subtle);white-space:nowrap;flex-shrink:0;">{{ notif.created_at.strftime('%d %b %H:%M') }}</div>
+      </div>
+      {% if notif.link %}
+      <div style="margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid var(--border);">
+        <a href="{{ notif.link }}" class="btn btn-ghost btn-sm" style="font-size:0.8rem;">View Details <i class="ti ti-arrow-right"></i></a>
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if pagination.pages > 1 %}
+  <div style="display:flex;gap:0.5rem;justify-content:center;margin-top:1.5rem;">
+    {% if pagination.has_prev %}<a href="?page={{ pagination.prev_num }}" class="btn btn-ghost btn-sm">← Prev</a>{% endif %}
+    <span style="padding:0.375rem 0.75rem;font-size:0.8rem;color:var(--text-muted);">{{ pagination.page }} / {{ pagination.pages }}</span>
+    {% if pagination.has_next %}<a href="?page={{ pagination.next_num }}" class="btn btn-ghost btn-sm">Next →</a>{% endif %}
+  </div>
+  {% endif %}
+
+  {% else %}
+  <div class="card" style="text-align:center;padding:3rem;">
+    <i class="ti ti-bell-off" style="font-size:2.5rem;color:var(--text-subtle);display:block;margin-bottom:0.875rem;"></i>
+    <div style="font-weight:600;margin-bottom:0.5rem;">No notifications</div>
+    <p style="color:var(--text-muted);font-size:0.875rem;">You're all caught up!</p>
+  </div>
+  {% endif %}
+</div>
+<script>
+function markAllRead() {
+  fetch('/api/notifications/mark-read', {method:'POST'})
+    .then(r=>r.json())
+    .then(()=>{ showToast('All notifications marked read','success'); setTimeout(()=>location.reload(),800); });
+}
+</script>
+{% endblock %}

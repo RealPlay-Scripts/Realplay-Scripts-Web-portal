@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}My Applications{% endblock %}
+{% block content %}
+<div style="max-width:900px;margin:0 auto;padding:2rem 1.5rem;">
+  <div class="page-header">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <h1 class="page-title">My Applications</h1>
+      <a href="{{ url_for('applications.list_types') }}" class="btn btn-primary btn-sm"><i class="ti ti-plus"></i> New Application</a>
+    </div>
+  </div>
+  {% if applications %}
+  <div style="display:flex;flex-direction:column;gap:0.875rem;">
+    {% for app in applications %}
+    <div class="card" style="border-left:3px solid {% if app.status=='approved' %}var(--green){% elif app.status=='denied' %}var(--red){% elif app.status=='pending' %}var(--yellow){% else %}var(--accent){% endif %};">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;">
+        <div style="display:flex;align-items:center;gap:0.875rem;">
+          <div style="width:40px;height:40px;border-radius:10px;background:{{ app.application_type.color }}22;display:flex;align-items:center;justify-content:center;color:{{ app.application_type.color }};font-size:1.1rem;flex-shrink:0;">
+            <i class="ti ti-{{ app.application_type.icon or 'file-text' }}"></i>
+          </div>
+          <div>
+            <div style="font-weight:700;">{{ app.application_type.name }}</div>
+            <div style="font-size:0.8rem;color:var(--text-muted);">Submitted {{ app.submitted_at.strftime('%d %b %Y') }}</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:0.875rem;">
+          <span class="badge badge-{{ app.status_badge_class }}" style="font-size:0.75rem;">{{ app.status.replace('_',' ').title() }}</span>
+          <a href="{{ url_for('applications.view_application', app_id=app.id) }}" class="btn btn-ghost btn-sm">View</a>
+          {% if app.status in ('pending','on_hold') %}
+          <form method="POST" action="{{ url_for('applications.withdraw', app_id=app.id) }}" onsubmit="return confirm('Withdraw this application?')">
+            <button type="submit" class="btn btn-danger btn-sm">Withdraw</button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+      {% if app.review_note %}
+      <div style="margin-top:0.875rem;padding:0.75rem;background:var(--surface-1);border-radius:8px;font-size:0.85rem;">
+        <div style="font-size:0.7rem;color:var(--text-subtle);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.375rem;">Staff Note</div>
+        {{ app.review_note }}
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="card" style="text-align:center;padding:3rem;">
+    <i class="ti ti-file-off" style="font-size:2.5rem;color:var(--text-subtle);display:block;margin-bottom:0.875rem;"></i>
+    <div style="font-size:1rem;font-weight:600;margin-bottom:0.5rem;">No applications yet</div>
+    <p style="color:var(--text-muted);margin-bottom:1.25rem;">Start your whitelist application today.</p>
+    <a href="{{ url_for('applications.list_types') }}" class="btn btn-primary">Apply Now</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

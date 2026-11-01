@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+{% block title %}Book an Interview{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">📅  Book an Interview</h1>
+  <p style="color:var(--text-muted);font-size:0.875rem;margin-top:0.25rem;">
+    Select a date and available time slot. All times are in <strong>South Africa Standard Time (SAST, UTC+2)</strong>.
+  </p>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 380px;gap:1.5rem;align-items:start;">
+
+  <!-- Left: Date + slot picker -->
+  <div>
+    <div class="card" style="padding:1.5rem;margin-bottom:1.25rem;">
+      <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted);margin-bottom:1rem;">
+        <i class="ti ti-calendar"></i> Step 1 — Choose a Date
+      </div>
+      <input type="date" id="date-picker" class="form-input"
+             min="{{ min_date }}" value="{{ default_date }}"
+             style="font-size:1rem;max-width:220px;"
+             onchange="loadSlots(this.value)" />
+      <div style="font-size:0.75rem;color:var(--text-subtle);margin-top:0.5rem;">
+        Interviews available Monday–Sunday, 08:30–22:30 SAST.
+      </div>
+    </div>
+
+    <div class="card" style="padding:1.5rem;">
+      <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted);margin-bottom:1rem;">
+        <i class="ti ti-clock"></i> Step 2 — Choose a Time Slot
+      </div>
+
+      <div id="slots-loading" style="text-align:center;padding:2rem;color:var(--text-muted);font-size:0.875rem;">
+        <i class="ti ti-loader-2" style="animation:spin 1s linear infinite;font-size:1.5rem;display:block;margin-bottom:0.5rem;"></i>
+        Loading available slots…
+      </div>
+
+      <div id="slots-grid" style="display:none;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:0.5rem;"></div>
+
+      <div id="slots-empty" style="display:none;text-align:center;padding:2rem;color:var(--text-muted);font-size:0.875rem;">
+        <i class="ti ti-calendar-off" style="font-size:1.5rem;display:block;margin-bottom:0.5rem;opacity:0.4;"></i>
+        No available slots for this date.<br>
+        <span style="font-size:0.78rem;">Try a different date.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Booking summary + form -->
+  <div>
+    <div class="card" style="padding:1.5rem;position:sticky;top:1.5rem;">
+      <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted);margin-bottom:1rem;">
+        <i class="ti ti-clipboard-check"></i> Step 3 — Confirm Booking
+      </div>
+
+      <!-- Summary -->
+      <div id="booking-summary" style="background:var(--surface-3);border-radius:10px;padding:1rem;margin-bottom:1.25rem;">
+        <div id="summary-empty" style="color:var(--text-subtle);font-size:0.82rem;text-align:center;padding:0.5rem 0;">
+          Select a date and time to continue
+        </div>
+        <div id="summary-filled" style="display:none;">
+          <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.5rem;">
+            <div style="width:40px;height:40px;border-radius:10px;background:var(--accent-dim);display:flex;align-items:center;justify-content:center;color:var(--accent);font-size:1.1rem;flex-shrink:0;">
+              <i class="ti ti-calendar-event"></i>
+            </div>
+            <div>
+              <div id="sum-date" style="font-weight:700;font-size:0.9rem;color:var(--text);"></div>
+              <div id="sum-time" style="font-size:0.8rem;color:var(--accent);font-weight:600;"></div>
+            </div>
+          </div>
+          <div style="font-size:0.75rem;color:var(--text-muted);border-top:1px solid var(--border);padding-top:0.5rem;margin-top:0.5rem;">
+            Duration: ~30 minutes  •  SAST (UTC+2)
+          </div>
+        </div>
+      </div>
+
+      <form method="POST" action="{{ url_for('interviews.book') }}" id="booking-form">
+        <input type="hidden" name="interview_date" id="form-date" />
+        <input type="hidden" name="interview_time" id="form-time" />
+
+        <div style="margin-bottom:1rem;">
+          <label class="form-label">Why do you want to join CFRP? <span style="color:var(--red);">*</span></label>
+          <textarea name="notes" class="form-input" rows="4" required maxlength="1000"
+                    placeholder="Tell us a bit about yourself, your roleplay experience, and why you'd like to join…"
+                    style="resize:vertical;"></textarea>
+          <div style="font-size:0.72rem;color:var(--text-subtle);margin-top:0.25rem;">Max 1000 characters</div>
+        </div>
+
+        <button type="submit" id="submit-btn" class="btn btn-primary" disabled
+                style="width:100%;justify-content:center;font-size:0.9rem;height:42px;">
+          <i class="ti ti-calendar-plus"></i> Book Interview
+        </button>
+        <div id="submit-hint" style="font-size:0.72rem;color:var(--text-subtle);text-align:center;margin-top:0.5rem;">
+          Select a time slot to enable booking
+        </div>
+      </form>
+
+      <div style="margin-top:1.25rem;background:rgba(99,102,241,0.07);border:1px solid rgba(99,102,241,0.2);border-radius:8px;padding:0.875rem;font-size:0.78rem;color:var(--text-muted);line-height:1.6;">
+        <strong style="color:var(--accent);">ℹ️  What to expect</strong><br>
+        Your booking will be reviewed by staff and confirmed via Discord DM.
+        Please be on Discord 5 minutes before your scheduled time.
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<style>
+@keyframes spin { to { transform: rotate(360deg); } }
+.slot-btn {
+  padding: 0.5rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+.slot-btn:hover { background: var(--surface-3); border-color: var(--accent); }
+.slot-btn.selected { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+</style>
+
+<script>
+var selectedTime = null;
+var selectedDate = document.getElementById('date-picker').value;
+
+function loadSlots(dateStr) {
+  selectedDate = dateStr;
+  selectedTime = null;
+  document.getElementById('form-time').value = '';
+  document.getElementById('submit-btn').disabled = true;
+  document.getElementById('submit-hint').style.display = '';
+  document.getElementById('summary-filled').style.display = 'none';
+  document.getElementById('summary-empty').style.display = '';
+  document.getElementById('slots-loading').style.display = 'block';
+  document.getElementById('slots-grid').style.display = 'none';
+  document.getElementById('slots-empty').style.display = 'none';
+
+  fetch('/interviews/api/slots?date=' + encodeURIComponent(dateStr))
+    .then(r => r.json())
+    .then(data => {
+      document.getElementById('slots-loading').style.display = 'none';
+      const available = data.slots.filter(s => s.available);
+      if (!available.length) {
+        document.getElementById('slots-empty').style.display = 'block';
+        return;
+      }
+      const grid = document.getElementById('slots-grid');
+      grid.style.display = 'grid';
+      grid.innerHTML = data.slots.map(s => {
+        if (!s.available) return '';
+        return `<button type="button" class="slot-btn" data-time="${s.time}" onclick="selectSlot('${s.time}')">${s.time}</button>`;
+      }).join('');
+    })
+    .catch(() => {
+      document.getElementById('slots-loading').style.display = 'none';
+      document.getElementById('slots-empty').style.display = 'block';
+    });
+}
+
+function selectSlot(t) {
+  selectedTime = t;
+  document.querySelectorAll('.slot-btn').forEach(b => b.classList.remove('selected'));
+  document.querySelector(`.slot-btn[data-time="${t}"]`)?.classList.add('selected');
+
+  // Fill form
+  document.getElementById('form-date').value = selectedDate;
+  document.getElementById('form-time').value = t + ':00';
+  document.getElementById('submit-btn').disabled = false;
+  document.getElementById('submit-hint').style.display = 'none';
+
+  // Update summary
+  const d = new Date(selectedDate + 'T' + t + ':00');
+  const dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  document.getElementById('sum-date').textContent =
+    dayNames[d.getDay()] + ', ' + d.getDate() + ' ' + monthNames[d.getMonth()] + ' ' + d.getFullYear();
+  document.getElementById('sum-time').textContent = t + ' SAST';
+  document.getElementById('summary-empty').style.display = 'none';
+  document.getElementById('summary-filled').style.display = '';
+}
+
+// Load slots for default date on page load
+window.addEventListener('DOMContentLoaded', () => loadSlots(selectedDate));
+</script>
+{% endblock %}

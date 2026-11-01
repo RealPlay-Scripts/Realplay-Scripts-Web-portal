@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}Create Account{% endblock %}
+
+{% block content %}
+<div style="min-height:calc(100vh - 52px);display:flex;align-items:center;justify-content:center;padding:2rem;">
+  <div style="width:100%;max-width:440px;">
+
+    <div style="text-align:center;margin-bottom:1.75rem;">
+      <div style="width:48px;height:48px;background:var(--accent);border-radius:12px;display:flex;align-items:center;justify-content:center;margin:0 auto 0.875rem;font-size:1.2rem;font-weight:900;color:#fff;">CF</div>
+      <h1 style="font-size:1.4rem;font-weight:800;letter-spacing:-0.02em;margin-bottom:0.3rem;">Create Account</h1>
+      <p style="color:var(--text-muted);font-size:0.825rem;">Join {{ site.site_name }} to apply for whitelist access</p>
+    </div>
+
+    <!-- Discord signup (primary CTA) -->
+    <a href="{{ url_for('auth.register_discord') }}"
+       style="display:flex;align-items:center;justify-content:center;gap:0.75rem;width:100%;padding:0.75rem 1rem;background:#5865F2;color:#fff;border-radius:10px;text-decoration:none;font-weight:700;font-size:0.875rem;margin-bottom:0.75rem;transition:opacity 0.15s;box-shadow:0 4px 16px rgba(88,101,242,0.35);"
+       onmouseover="this.style.opacity='0.92'" onmouseout="this.style.opacity='1'">
+      <svg width="18" height="18" viewBox="0 0 71 55" fill="currentColor" style="flex-shrink:0;">
+        <path d="M60.1 4.9A58.5 58.5 0 0 0 45.5.4a.2.2 0 0 0-.2.1 40.8 40.8 0 0 0-1.8 3.7 54 54 0 0 0-16.2 0 37.4 37.4 0 0 0-1.9-3.7.2.2 0 0 0-.2-.1A58.4 58.4 0 0 0 10.6 4.9a.2.2 0 0 0-.1.1C1.6 18.3-.9 31.3.3 44.1a.2.2 0 0 0 .1.2A58.8 58.8 0 0 0 18.1 54a.2.2 0 0 0 .2-.1 42 42 0 0 0 3.6-5.9.2.2 0 0 0-.1-.3 38.7 38.7 0 0 1-5.5-2.6.2.2 0 0 1 0-.4l1.1-.8a.2.2 0 0 1 .2 0c11.5 5.2 23.9 5.2 35.3 0a.2.2 0 0 1 .2 0l1.1.8a.2.2 0 0 1 0 .4 36.2 36.2 0 0 1-5.5 2.6.2.2 0 0 0-.1.3 47.1 47.1 0 0 0 3.6 5.9.2.2 0 0 0 .2.1 58.6 58.6 0 0 0 17.7-9.7.2.2 0 0 0 .1-.2c1.5-15-2.5-28-10.4-39.2a.2.2 0 0 0-.1-.1z"/>
+      </svg>
+      Sign up with Discord
+      <span style="font-size:0.72rem;font-weight:500;opacity:0.8;margin-left:0.25rem;">— Fastest way</span>
+    </a>
+
+    <p style="text-align:center;font-size:0.72rem;color:var(--text-subtle);margin-bottom:1.25rem;">
+      Links your Discord, creates your account, then lets you set a password
+    </p>
+
+    <!-- Divider -->
+    <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1.25rem;">
+      <div style="flex:1;height:1px;background:var(--border);"></div>
+      <span style="font-size:0.68rem;color:var(--text-subtle);text-transform:uppercase;letter-spacing:0.1em;">or with email</span>
+      <div style="flex:1;height:1px;background:var(--border);"></div>
+    </div>
+
+    <!-- Email form -->
+    <div class="card" style="padding:1.25rem;">
+      <form method="POST" action="{{ url_for('auth.register') }}">
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.625rem;margin-bottom:0.75rem;">
+          <div>
+            <label class="form-label">Username</label>
+            <input type="text" name="username" class="form-input"
+                   placeholder="yourname" required minlength="3" maxlength="32"
+                   value="{{ form_data.get('username','') if form_data else '' }}"
+                   pattern="[a-zA-Z0-9_.\-]+" />
+          </div>
+          <div>
+            <label class="form-label">Email</label>
+            <input type="email" name="email" class="form-input"
+                   placeholder="you@email.com" required
+                   value="{{ form_data.get('email','') if form_data else '' }}" />
+          </div>
+        </div>
+
+        <div style="margin-bottom:0.625rem;">
+          <label class="form-label">Password</label>
+          <div style="position:relative;">
+            <input type="password" id="pw" name="password" class="form-input"
+                   placeholder="Minimum 8 characters" required minlength="8" oninput="checkStr(this.value)" />
+            <button type="button" onclick="tp('pw','pwe')" style="position:absolute;right:0.625rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text-muted);">
+              <i class="ti ti-eye" id="pwe"></i>
+            </button>
+          </div>
+          <div style="margin-top:0.3rem;display:flex;align-items:center;gap:0.5rem;">
+            <div class="progress-bar" style="flex:1;">
+              <div class="progress-fill" id="sbar" style="width:0%;background:var(--red);transition:width 0.3s,background 0.3s;"></div>
+            </div>
+            <span id="slabel" style="font-size:0.68rem;color:var(--text-subtle);min-width:50px;"></span>
+          </div>
+        </div>
+
+        <div style="margin-bottom:0.875rem;">
+          <label class="form-label">Confirm Password</label>
+          <div style="position:relative;">
+            <input type="password" id="cpw" name="confirm_password" class="form-input"
+                   placeholder="Re-enter password" required />
+            <button type="button" onclick="tp('cpw','cpwe')" style="position:absolute;right:0.625rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text-muted);">
+              <i class="ti ti-eye" id="cpwe"></i>
+            </button>
+          </div>
+        </div>
+
+        <label style="display:flex;align-items:flex-start;gap:0.5rem;cursor:pointer;margin-bottom:1rem;font-size:0.78rem;color:var(--text-muted);">
+          <input type="checkbox" name="terms" required style="accent-color:var(--accent);margin-top:2px;flex-shrink:0;" />
+          <span>I agree to the Terms of Service</span>
+        </label>
+
+        <button type="submit" class="btn btn-ghost" style="width:100%;justify-content:center;padding:0.55rem;">
+          <i class="ti ti-user-plus"></i> Create with Email
+        </button>
+
+      </form>
+    </div>
+
+    <p style="text-align:center;margin-top:1rem;font-size:0.825rem;color:var(--text-muted);">
+      Already have an account?
+      <a href="{{ url_for('auth.login') }}" style="color:var(--accent);font-weight:600;text-decoration:none;">Sign in</a>
+    </p>
+
+  </div>
+</div>
+
+<script>
+function tp(id, ic) {
+  const el = document.getElementById(id);
+  const icon = document.getElementById(ic);
+  el.type = el.type === 'password' ? 'text' : 'password';
+  icon.className = el.type === 'password' ? 'ti ti-eye' : 'ti ti-eye-off';
+}
+function checkStr(pw) {
+  let s = 0;
+  if (pw.length >= 8) s++;
+  if (pw.length >= 12) s++;
+  if (/[A-Z]/.test(pw)) s++;
+  if (/[0-9]/.test(pw)) s++;
+  if (/[^A-Za-z0-9]/.test(pw)) s++;
+  const pct = s / 5 * 100;
+  const cols = ['var(--red)','var(--red)','var(--yellow)','var(--yellow)','var(--green)','var(--green)'];
+  const labs = ['','Weak','Weak','Fair','Good','Strong'];
+  document.getElementById('sbar').style.cssText += `width:${pct}%;background:${cols[s]}`;
+  const lbl = document.getElementById('slabel');
+  lbl.textContent = labs[s] || '';
+  lbl.style.color = cols[s];
+}
+</script>
+{% endblock %}

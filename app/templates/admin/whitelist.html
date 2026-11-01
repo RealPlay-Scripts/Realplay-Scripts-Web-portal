@@ -1,0 +1,556 @@
+{% extends "admin/base_admin.html" %}
+{% block admin_content %}
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=DM+Sans:wght@400;500;600&display=swap');
+
+/* ── Root ── */
+.wl-root { font-family: 'DM Sans', sans-serif; padding: 0.5rem 0 2rem; }
+
+/* ── Header ── */
+.wl-top {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 1rem; margin-bottom: 1.25rem; flex-wrap: wrap;
+}
+.wl-heading { font-size: 1.15rem; font-weight: 500; color: var(--text); margin: 0 0 3px; }
+.wl-sub { font-size: 0.72rem; color: var(--text-subtle); font-family: 'JetBrains Mono', monospace; letter-spacing: 0.02em; }
+
+/* ── Status pill ── */
+.status-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px 4px 8px; border-radius: 20px;
+  font-size: 0.72rem; font-weight: 600; border: 1px solid; cursor: pointer;
+  transition: all 0.2s; user-select: none;
+}
+.status-pill.active  { background: rgba(34,197,94,0.1);  color: #22c55e; border-color: rgba(34,197,94,0.35); }
+.status-pill.inactive{ background: rgba(239,68,68,0.1);  color: #ef4444; border-color: rgba(239,68,68,0.35); }
+.status-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.status-pill.active  .status-dot { background: #22c55e; }
+.status-pill.inactive .status-dot { background: #ef4444; }
+
+/* ── Toggle ── */
+.toggle-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.toggle-track {
+  width: 40px; height: 22px; border-radius: 11px;
+  border: 1px solid var(--border); background: var(--surface-3);
+  position: relative; cursor: pointer; transition: background 0.25s, border-color 0.25s;
+}
+.toggle-track.on { background: #22c55e; border-color: #22c55e; }
+.toggle-thumb {
+  width: 16px; height: 16px; border-radius: 50%; background: #fff;
+  position: absolute; top: 3px; left: 3px;
+  transition: transform 0.25s; box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+}
+.toggle-track.on .toggle-thumb { transform: translateX(18px); }
+.toggle-lbl { font-size: 0.75rem; color: var(--text-subtle); font-weight: 600; }
+
+/* ── Description bar ── */
+.wl-desc-bar {
+  font-size: 0.75rem; color: var(--text-subtle);
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 7px 12px; margin-bottom: 1.5rem;
+  transition: color 0.2s;
+}
+
+/* ── Section divider ── */
+.section-label {
+  font-size: 0.68rem; font-weight: 600; color: var(--text-subtle);
+  text-transform: uppercase; letter-spacing: 0.08em;
+  margin: 1.5rem 0 0.75rem; display: flex; align-items: center; gap: 8px;
+}
+.section-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+/* ── Form card ── */
+.schedule-form-card {
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 14px; padding: 1.25rem; margin-bottom: 0;
+}
+
+/* ── Presets ── */
+.presets-row {
+  display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+  margin-bottom: 1rem;
+}
+.presets-prefix {
+  font-size: 0.68rem; color: var(--text-subtle);
+  font-family: 'JetBrains Mono', monospace; margin-right: 2px; white-space: nowrap;
+}
+.preset-btn {
+  font-family: 'JetBrains Mono', monospace; font-size: 0.7rem;
+  padding: 3px 8px; border-radius: 5px;
+  border: 1px solid var(--border); background: var(--surface-3);
+  color: var(--text-subtle); cursor: pointer; transition: all 0.15s; white-space: nowrap;
+}
+.preset-btn:hover { border-color: #22c55e; color: #22c55e; background: rgba(34,197,94,0.08); }
+
+/* ── Grid ── */
+.form-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;
+}
+@media (max-width: 560px) { .form-grid { grid-template-columns: 1fr; } }
+
+/* ── Fields ── */
+.form-group { display: flex; flex-direction: column; gap: 4px; }
+.form-group label {
+  font-size: 0.68rem; font-weight: 600; color: var(--text-subtle);
+  text-transform: uppercase; letter-spacing: 0.07em;
+}
+.form-group input,
+.form-group select {
+  background: var(--surface-3); border: 1px solid var(--border);
+  border-radius: 8px; color: var(--text);
+  padding: 7px 10px; font-size: 0.82rem;
+  font-family: 'DM Sans', sans-serif;
+  outline: none; transition: border-color 0.15s, box-shadow 0.15s; width: 100%; box-sizing: border-box;
+}
+.form-group input:focus,
+.form-group select:focus { border-color: #22c55e; box-shadow: 0 0 0 2px rgba(34,197,94,0.12); }
+.field-hint {
+  font-size: 0.68rem; color: var(--text-subtle);
+  font-family: 'JetBrains Mono', monospace; margin-top: 2px;
+}
+#sast-now { font-weight: 600; color: var(--text); }
+
+/* ── Action cards ── */
+.action-selector { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.action-card {
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 10px 12px; cursor: pointer; text-align: center;
+  transition: all 0.15s; background: var(--surface-3); user-select: none;
+}
+.action-card:hover { border-color: var(--accent); }
+.action-card.active-on  { border: 2px solid #22c55e; background: rgba(34,197,94,0.08); }
+.action-card.active-off { border: 2px solid #ef4444; background: rgba(239,68,68,0.08); }
+.ac-icon  { font-size: 1rem; margin-bottom: 2px; }
+.ac-label { font-size: 0.75rem; font-weight: 600; color: var(--text); }
+.ac-desc  { font-size: 0.65rem; color: var(--text-subtle); margin-top: 1px; }
+.action-card.active-on  .ac-label { color: #22c55e; }
+.action-card.active-off .ac-label { color: #ef4444; }
+
+/* ── Form footer ── */
+.form-footer {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 8px; padding-top: 12px;
+  border-top: 1px solid var(--border); margin-top: 4px;
+}
+.footer-note {
+  font-size: 0.68rem; color: var(--text-subtle);
+  font-family: 'JetBrains Mono', monospace;
+}
+.btn-add {
+  background: #166534; color: #bbf7d0;
+  border: none; border-radius: 8px;
+  padding: 7px 16px; font-size: 0.82rem; font-weight: 600;
+  cursor: pointer; font-family: 'DM Sans', sans-serif;
+  display: flex; align-items: center; gap: 6px;
+  transition: opacity 0.15s; white-space: nowrap;
+}
+.btn-add:hover  { opacity: 0.85; }
+.btn-add:active { opacity: 0.7; transform: scale(0.98); }
+
+/* ── Schedule table ── */
+.schedule-table-wrap {
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 14px; overflow: hidden;
+}
+.schedule-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+.schedule-table th {
+  background: var(--surface-3); color: var(--text-subtle);
+  font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em;
+  font-size: 0.62rem; font-family: 'JetBrains Mono', monospace;
+  padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border);
+}
+.schedule-table td {
+  padding: 10px 12px; border-bottom: 1px solid var(--border);
+  color: var(--text); vertical-align: middle;
+}
+.schedule-table tr:last-child td { border-bottom: none; }
+.schedule-table tr:hover td { background: var(--surface-3); }
+.time-primary   { font-weight: 600; font-size: 0.78rem; font-family: 'JetBrains Mono', monospace; }
+.time-secondary { font-size: 0.68rem; color: var(--text-subtle); font-family: 'JetBrains Mono', monospace; margin-top: 1px; }
+
+/* ── Badges ── */
+.badge {
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 2px 7px; border-radius: 4px;
+  font-size: 0.62rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.05em; border: 1px solid; font-family: 'JetBrains Mono', monospace;
+}
+.badge-on      { background: rgba(34,197,94,0.1);   color: #22c55e; border-color: rgba(34,197,94,0.3);  }
+.badge-off     { background: rgba(239,68,68,0.1);   color: #ef4444; border-color: rgba(239,68,68,0.3);  }
+.badge-once    { background: rgba(99,102,241,0.1);  color: var(--accent); border-color: rgba(99,102,241,0.3); }
+.badge-daily   { background: rgba(234,179,8,0.1);   color: #ca8a04; border-color: rgba(234,179,8,0.3);  }
+.badge-weekly  { background: rgba(59,130,246,0.1);  color: #3b82f6; border-color: rgba(59,130,246,0.3); }
+.badge-done    { background: var(--surface-3); color: var(--text-subtle); border-color: var(--border); }
+.badge-pending { background: rgba(34,197,94,0.08);  color: #22c55e; border-color: rgba(34,197,94,0.2);  }
+
+/* ── Delete button ── */
+.btn-del {
+  background: transparent; border: 1px solid var(--border);
+  color: var(--text-subtle); border-radius: 5px;
+  padding: 3px 10px; font-size: 0.7rem; cursor: pointer;
+  transition: all 0.15s; white-space: nowrap; font-family: 'DM Sans', sans-serif;
+}
+.btn-del:hover { border-color: #ef4444; color: #ef4444; background: rgba(239,68,68,0.08); }
+
+.empty-row td {
+  text-align: center; padding: 2.5rem;
+  color: var(--text-subtle); font-style: italic; font-size: 0.8rem;
+}
+
+/* ── Toast ── */
+#wl-toast {
+  position: fixed; bottom: 1.5rem; right: 1.5rem;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 9px 14px; font-size: 0.78rem; color: var(--text);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+  display: flex; align-items: center; gap: 8px;
+  opacity: 0; pointer-events: none; transform: translateY(6px);
+  transition: opacity 0.2s, transform 0.2s; z-index: 9999;
+}
+#wl-toast.show { opacity: 1; pointer-events: auto; transform: translateY(0); }
+.toast-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+</style>
+
+<div class="wl-root">
+
+  <!-- ── Header ── -->
+  <div class="wl-top">
+    <div>
+      <div class="wl-heading"><i class="ti ti-lock"></i> Whitelist Control</div>
+      <div class="wl-sub">server access &middot; SAST (UTC+2) &middot; all times stored as UTC</div>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+      <div id="wl-status-pill" class="status-pill {% if whitelist_enabled %}active{% else %}inactive{% endif %}">
+        <span class="status-dot"></span>
+        <span id="wl-status-text">Whitelist {% if whitelist_enabled %}active{% else %}disabled{% endif %}</span>
+      </div>
+      <div class="toggle-row">
+        <span class="toggle-lbl">off</span>
+        <div class="toggle-track {% if whitelist_enabled %}on{% endif %}" id="wl-toggle-track" onclick="handleToggle()">
+          <div class="toggle-thumb"></div>
+        </div>
+        <span class="toggle-lbl">on</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Description bar ── -->
+  <div class="wl-desc-bar" id="wl-desc-bar">
+    {% if whitelist_enabled %}
+      Only registered &amp; Discord-linked players may join the server.
+    {% else %}
+      Whitelist is OFF &mdash; all players can connect regardless of registration.
+    {% endif %}
+  </div>
+
+  <!-- ── Schedule form ── -->
+  <div class="section-label">Schedule</div>
+  <div class="schedule-form-card">
+
+    <!-- Quick presets -->
+    <div class="presets-row">
+      <span class="presets-prefix">quick fill:</span>
+      <button class="preset-btn" onclick="applyPreset(1)">+1h</button>
+      <button class="preset-btn" onclick="applyPreset(2)">+2h</button>
+      <button class="preset-btn" onclick="applyPreset(6)">+6h</button>
+      <button class="preset-btn" onclick="applyPreset(24)">tomorrow same</button>
+      <button class="preset-btn" onclick="applyPreset(168)">next week</button>
+      <button class="preset-btn" onclick="applyMidnight()">tonight 00:00</button>
+      <button class="preset-btn" onclick="applyMorning()">tomorrow 06:00</button>
+    </div>
+
+    <!-- Row 1: label + datetime -->
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Label <span style="opacity:.5;font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+        <input type="text" id="f-label" placeholder="e.g. Weekend open, Maintenance window…">
+      </div>
+      <div class="form-group">
+        <label>Date &amp; Time <span style="color:#22c55e;font-weight:600">(SAST — UTC+2)</span></label>
+        <input type="datetime-local" id="f-datetime">
+        <div class="field-hint">now: <span id="sast-now">—</span></div>
+      </div>
+    </div>
+
+    <!-- Row 2: action + repeat -->
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Action</label>
+        <div class="action-selector">
+          <div class="action-card active-on" id="card-on" onclick="selectState(true)">
+            <div class="ac-icon">🔒</div>
+            <div class="ac-label">Turn ON</div>
+            <div class="ac-desc">Enable whitelist</div>
+          </div>
+          <div class="action-card" id="card-off" onclick="selectState(false)">
+            <div class="ac-icon">🔓</div>
+            <div class="ac-label">Turn OFF</div>
+            <div class="ac-desc">Open to all players</div>
+          </div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Repeat</label>
+        <select id="f-repeat">
+          <option value="once">Once only — fire and done</option>
+          <option value="daily">Every day at this time</option>
+          <option value="weekly">Every week on this day</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-footer">
+      <div class="footer-note">UTC internally &middot; displayed as SAST (UTC+2)</div>
+      <button class="btn-add" onclick="addSchedule()">
+        <i class="ti ti-calendar-plus"></i> Add Schedule
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Schedule list ── -->
+  <div class="section-label" style="margin-top:1.5rem;">Upcoming</div>
+  <div class="schedule-table-wrap">
+    <table class="schedule-table">
+      <thead>
+        <tr>
+          <th>Label</th>
+          <th>Action</th>
+          <th>Fires at (SAST)</th>
+          <th>UTC</th>
+          <th>Repeat</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="schedule-tbody">
+        {% if schedules %}
+          {% for s in schedules %}
+          <tr id="row-{{ s.id }}">
+            <td style="color:var(--text-subtle);font-size:0.78rem;">{{ s.label or '—' }}</td>
+            <td>
+              <span class="badge {% if s.enabled %}badge-on{% else %}badge-off{% endif %}">
+                {{ 'ON' if s.enabled else 'OFF' }}
+              </span>
+            </td>
+            <td>
+              {% set sast_hour = s.scheduled_at.hour + 2 %}
+              {% if sast_hour >= 24 %}{% set sast_hour = sast_hour - 24 %}{% endif %}
+              <div class="time-primary">
+                {{ s.scheduled_at.strftime('%Y-%m-%d') }}
+                {{ '%02d' % sast_hour }}:{{ s.scheduled_at.strftime('%M') }} SAST
+              </div>
+            </td>
+            <td>
+              <div class="time-secondary">{{ s.scheduled_at.strftime('%H:%M') }} UTC</div>
+            </td>
+            <td>
+              <span class="badge badge-{{ s.repeat_type }}">{{ s.repeat_type }}</span>
+            </td>
+            <td>
+              {% if s.is_executed %}
+                <span class="badge badge-done">done</span>
+              {% else %}
+                <span class="badge badge-pending">pending</span>
+              {% endif %}
+            </td>
+            <td>
+              <button class="btn-del" onclick="deleteSchedule({{ s.id }})">
+                <i class="ti ti-trash"></i> delete
+              </button>
+            </td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr class="empty-row" id="empty-row">
+            <td colspan="7">No schedules yet. Add one above.</td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+</div><!-- /.wl-root -->
+
+<!-- ── Toast ── -->
+<div id="wl-toast">
+  <div class="toast-dot" id="toast-dot"></div>
+  <span id="wl-toast-msg"></span>
+</div>
+
+<script>
+const SAST_OFFSET_MS = 2 * 60 * 60 * 1000;
+
+function nowSAST() { return new Date(Date.now() + SAST_OFFSET_MS); }
+function pad(n) { return String(n).padStart(2, '0'); }
+
+function sastToUTC(str) {
+  const d = new Date(str + ':00Z');
+  return new Date(d.getTime() - SAST_OFFSET_MS);
+}
+function utcToSASTStr(utcDate) {
+  const s = new Date(utcDate.getTime() + SAST_OFFSET_MS);
+  return `${s.getUTCFullYear()}-${pad(s.getUTCMonth()+1)}-${pad(s.getUTCDate())} ` +
+         `${pad(s.getUTCHours())}:${pad(s.getUTCMinutes())} SAST`;
+}
+function utcToUTCStr(utcDate) {
+  return `${pad(utcDate.getUTCHours())}:${pad(utcDate.getUTCMinutes())} UTC`;
+}
+function sastLocalStr(d) {
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())}` +
+         `T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+}
+
+// Live SAST clock
+function updateSASTClock() {
+  const d = nowSAST();
+  document.getElementById('sast-now').textContent =
+    `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
+}
+updateSASTClock();
+setInterval(updateSASTClock, 1000);
+
+// Pre-fill datetime to now+1h SAST
+(function() {
+  const d = nowSAST();
+  d.setUTCHours(d.getUTCHours() + 1, 0, 0, 0);
+  document.getElementById('f-datetime').value = sastLocalStr(d);
+})();
+
+// ── Toggle whitelist ──
+function handleToggle() {
+  fetch('{{ url_for("admin.whitelist_toggle") }}', {
+    method: 'POST',
+    headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json' }
+  })
+  .then(r => r.json())
+  .then(data => {
+    const on = data.enabled;
+    const track = document.getElementById('wl-toggle-track');
+    const pill  = document.getElementById('wl-status-pill');
+    track.className = 'toggle-track' + (on ? ' on' : '');
+    pill.className  = 'status-pill ' + (on ? 'active' : 'inactive');
+    document.getElementById('wl-status-text').textContent = 'Whitelist ' + (on ? 'active' : 'disabled');
+    document.getElementById('wl-desc-bar').textContent = on
+      ? 'Only registered & Discord-linked players may join the server.'
+      : 'Whitelist is OFF — all players can connect regardless of registration.';
+    toast(on ? 'Whitelist enabled' : 'Whitelist disabled', on);
+  })
+  .catch(() => toast('Error — could not update whitelist', false));
+}
+
+// ── Action selector ──
+let scheduleEnabled = true;
+function selectState(on) {
+  scheduleEnabled = on;
+  document.getElementById('card-on').className  = 'action-card' + (on  ? ' active-on'  : '');
+  document.getElementById('card-off').className = 'action-card' + (!on ? ' active-off' : '');
+}
+
+// ── Presets ──
+function applyPreset(hours) {
+  const d = nowSAST();
+  d.setUTCHours(d.getUTCHours() + hours, 0, 0, 0);
+  document.getElementById('f-datetime').value = sastLocalStr(d);
+}
+function applyMidnight() {
+  const d = nowSAST();
+  d.setUTCDate(d.getUTCDate() + 1);
+  d.setUTCHours(0, 0, 0, 0);
+  document.getElementById('f-datetime').value = sastLocalStr(d);
+}
+function applyMorning() {
+  const d = nowSAST();
+  d.setUTCDate(d.getUTCDate() + 1);
+  d.setUTCHours(6, 0, 0, 0);
+  document.getElementById('f-datetime').value = sastLocalStr(d);
+}
+
+// ── Add schedule ──
+function addSchedule() {
+  const label  = document.getElementById('f-label').value.trim();
+  const dtVal  = document.getElementById('f-datetime').value;
+  const repeat = document.getElementById('f-repeat').value;
+  if (!dtVal) { toast('Pick a date & time first', false); return; }
+  const utcDate = sastToUTC(dtVal);
+  const isoUTC  = utcDate.toISOString().slice(0, 16);
+  fetch('{{ url_for("admin.whitelist_create_schedule") }}', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+    body: JSON.stringify({ label, enabled: scheduleEnabled, scheduled_at: isoUTC + ':00', repeat_type: repeat })
+  })
+  .then(r => r.json())
+  .then(s => {
+    if (s.error) { toast(s.error, false); return; }
+    appendRow(s);
+    document.getElementById('f-label').value = '';
+    const d = nowSAST(); d.setUTCHours(d.getUTCHours() + 1, 0, 0, 0);
+    document.getElementById('f-datetime').value = sastLocalStr(d);
+    toast('Schedule added', true);
+  })
+  .catch(() => toast('Failed to add schedule', false));
+}
+
+// ── Delete schedule ──
+function deleteSchedule(id) {
+  if (!confirm('Delete this schedule?')) return;
+  fetch(`/admin/whitelist/schedule/${id}`, {
+    method: 'DELETE',
+    headers: { 'X-CSRFToken': getCsrf() }
+  })
+  .then(r => r.json())
+  .then(data => {
+    const row = document.getElementById('row-' + data.deleted);
+    if (row) row.remove();
+    if (!document.querySelector('#schedule-tbody tr:not(.empty-row)')) {
+      document.getElementById('schedule-tbody').innerHTML =
+        '<tr class="empty-row" id="empty-row"><td colspan="7">No schedules yet. Add one above.</td></tr>';
+    }
+    toast('Schedule deleted', false);
+  });
+}
+
+// ── Append row ──
+function appendRow(s) {
+  const empty = document.getElementById('empty-row');
+  if (empty) empty.remove();
+  const utcDate = new Date(s.scheduled_at + (s.scheduled_at.endsWith('Z') ? '' : 'Z'));
+  const sastStr = utcToSASTStr(utcDate);
+  const utcStr  = utcToUTCStr(utcDate);
+  const badgeAction = s.enabled
+    ? '<span class="badge badge-on">ON</span>'
+    : '<span class="badge badge-off">OFF</span>';
+  const badgeRep  = `<span class="badge badge-${s.repeat_type}">${s.repeat_type}</span>`;
+  const badgeStat = '<span class="badge badge-pending">pending</span>';
+  const tr = document.createElement('tr');
+  tr.id = 'row-' + s.id;
+  tr.innerHTML = `
+    <td style="color:var(--text-subtle);font-size:0.78rem;">${s.label || '—'}</td>
+    <td>${badgeAction}</td>
+    <td><div class="time-primary">${sastStr}</div></td>
+    <td><div class="time-secondary">${utcStr}</div></td>
+    <td>${badgeRep}</td>
+    <td>${badgeStat}</td>
+    <td><button class="btn-del" onclick="deleteSchedule(${s.id})"><i class="ti ti-trash"></i> delete</button></td>
+  `;
+  document.getElementById('schedule-tbody').appendChild(tr);
+}
+
+// ── Helpers ──
+function toast(msg, ok = true) {
+  document.getElementById('toast-dot').style.background = ok ? '#22c55e' : '#ef4444';
+  document.getElementById('wl-toast-msg').textContent = msg;
+  const el = document.getElementById('wl-toast');
+  el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), 3200);
+}
+
+function getCsrf() {
+  const m = document.cookie.match(/csrftoken=([^;]+)/);
+  if (m) return m[1];
+  const meta = document.querySelector('meta[name="csrf-token"]');
+  return meta ? meta.getAttribute('content') : '';
+}
+</script>
+{% endblock %}

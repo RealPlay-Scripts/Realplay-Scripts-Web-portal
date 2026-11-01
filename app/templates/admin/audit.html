@@ -1,0 +1,31 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Audit Log{% endblock %}
+{% block admin_content %}
+<div class="page-header"><h1 class="page-title">Audit Log</h1></div>
+<div class="card" style="padding:0;overflow:hidden;">
+  <div class="scroll-x">
+    <table class="data-table">
+      <thead><tr><th>Time</th><th>User</th><th>Action</th><th>Resource</th><th>IP</th></tr></thead>
+      <tbody>
+        {% for log in logs %}
+        <tr>
+          <td style="font-family:'JetBrains Mono',monospace;font-size:0.75rem;color:var(--text-subtle);white-space:nowrap;">{{ log.created_at.strftime('%d %b %H:%M:%S') }}</td>
+          <td style="font-weight:600;font-size:0.85rem;">{{ log.actor.username if log.actor else 'System' }}</td>
+          <td><span style="font-family:'JetBrains Mono',monospace;font-size:0.8rem;color:var(--accent);">{{ log.action }}</span></td>
+          <td style="font-size:0.8rem;color:var(--text-muted);">{{ log.resource_type }}{% if log.resource_id %} #{{ log.resource_id }}{% endif %}</td>
+          <td style="font-family:'JetBrains Mono',monospace;font-size:0.75rem;color:var(--text-subtle);">{{ log.ip_address or '—' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" style="text-align:center;padding:3rem;color:var(--text-subtle);">No audit entries</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if pagination.pages > 1 %}
+  <div style="padding:0.875rem 1.25rem;border-top:1px solid var(--border);display:flex;gap:0.5rem;justify-content:flex-end;">
+    {% if pagination.has_prev %}<a href="?page={{ pagination.prev_num }}" class="btn btn-ghost btn-sm">← Prev</a>{% endif %}
+    {% if pagination.has_next %}<a href="?page={{ pagination.next_num }}" class="btn btn-ghost btn-sm">Next →</a>{% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

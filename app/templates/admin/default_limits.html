@@ -1,0 +1,241 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Default Limit Templates{% endblock %}
+{% block admin_content %}
+<div class="page-header">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.75rem;">
+    <div style="display:flex;align-items:center;gap:0.75rem;">
+      <a href="{{ url_for('admin.user_limits') }}" style="color:var(--text-muted);text-decoration:none;"><i class="ti ti-arrow-left"></i></a>
+      <h1 class="page-title">Default Limit Templates</h1>
+    </div>
+    <button class="btn btn-primary btn-sm" onclick="openNewModal()">
+      <i class="ti ti-plus"></i> New Template
+    </button>
+  </div>
+</div>
+
+<p style="color:var(--text-muted);font-size:0.875rem;margin-bottom:1.25rem;">
+  Templates define the restrictions that are automatically applied when a trigger fires
+  (e.g. a user submits an age under 18). Editing a template does <strong>not</strong>
+  retroactively change existing UserLimit records.
+</p>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:1rem;">
+  {% for tmpl in defaults %}
+  <div class="card" style="position:relative;{% if not tmpl.is_active %}opacity:0.6;{% endif %}">
+    {# Active badge #}
+    <div style="position:absolute;top:1rem;right:1rem;">
+      {% if tmpl.is_active %}
+        <span class="badge badge-green" style="font-size:0.62rem;">Active</span>
+      {% else %}
+        <span class="badge badge-gray" style="font-size:0.62rem;">Disabled</span>
+      {% endif %}
+    </div>
+
+    <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.875rem;">
+      <div style="width:36px;height:36px;border-radius:10px;background:rgba(239,68,68,0.12);
+                  display:flex;align-items:center;justify-content:center;font-size:1.2rem;">
+        {% if tmpl.slug == 'under_18' %}🔞{% else %}🚫{% endif %}
+      </div>
+      <div>
+        <div style="font-weight:700;font-size:0.95rem;">{{ tmpl.label }}</div>
+        <div style="font-size:0.72rem;color:var(--text-subtle);font-family:'JetBrains Mono',monospace;">{{ tmpl.slug }}</div>
+      </div>
+    </div>
+
+    {% if tmpl.description %}
+      <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:0.75rem;">{{ tmpl.description }}</p>
+    {% endif %}
+
+    {# Flags #}
+    <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:0.875rem;">
+      {% if tmpl.no_firearm %}
+        <span class="badge" style="background:#fef2f2;color:#dc2626;border-color:#fca5a5;font-size:0.62rem;">🔫 No Firearm</span>
+      {% endif %}
+      {% if tmpl.no_create_priority %}
+        <span class="badge badge-orange" style="font-size:0.62rem;">🚫 No Create Priority</span>
+      {% endif %}
+      {% if tmpl.no_join_priority %}
+        <span class="badge badge-orange" style="font-size:0.62rem;">🚫 No Join Priority</span>
+      {% endif %}
+    </div>
+
+    <div style="display:flex;gap:1rem;font-size:0.8rem;color:var(--text-muted);margin-bottom:1rem;border-top:1px solid var(--border);padding-top:0.75rem;">
+      <div>
+        <div style="font-size:0.68rem;color:var(--text-subtle);text-transform:uppercase;letter-spacing:0.06em;">Duration</div>
+        <div style="font-weight:600;">{{ tmpl.duration_days ~ ' days' if tmpl.duration_days else 'Permanent' }}</div>
+      </div>
+      {% if tmpl.notes %}
+      <div style="flex:1;">
+        <div style="font-size:0.68rem;color:var(--text-subtle);text-transform:uppercase;letter-spacing:0.06em;">Notes</div>
+        <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;" title="{{ tmpl.notes }}">{{ tmpl.notes }}</div>
+      </div>
+      {% endif %}
+    </div>
+
+    <button class="btn btn-ghost btn-sm" style="width:100%;justify-content:center;"
+            onclick="openEditModal({{ tmpl.to_dict()|tojson }})">
+      <i class="ti ti-edit"></i> Edit Template
+    </button>
+  </div>
+  {% else %}
+  <div class="card" style="text-align:center;padding:3rem;color:var(--text-subtle);grid-column:1/-1;">
+    <i class="ti ti-template" style="font-size:2rem;display:block;margin-bottom:0.5rem;"></i>
+    No templates yet. Create one to get started.
+  </div>
+  {% endfor %}
+</div>
+
+
+{# ═══════════════════════════════════════════════════════════════════════════
+   SHARED FORM MODAL  (new + edit re-use same structure via JS population)
+═══════════════════════════════════════════════════════════════════════════ #}
+<div id="limit-tmpl-modal" class="modal-overlay hidden">
+  <div class="modal-box" style="width:480px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;">
+      <div style="font-weight:700;font-size:1rem;display:flex;align-items:center;gap:0.5rem;" id="tmpl-modal-title">
+        <i class="ti ti-template"></i> Template
+      </div>
+      <button onclick="closeModal('limit-tmpl-modal')" class="modal-close">×</button>
+    </div>
+
+    <form method="POST" action="{{ url_for('admin.save_default_limit') }}">
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1rem;">
+        <div>
+          <label class="form-label">Slug <span style="color:var(--red);">*</span></label>
+          <input type="text" name="slug" id="tmpl-slug" class="form-input"
+                 placeholder="e.g. under_18" pattern="[a-z0-9_]+" required />
+          <p style="font-size:0.7rem;color:var(--text-subtle);margin-top:2px;">Lowercase, underscores only</p>
+        </div>
+        <div>
+          <label class="form-label">Label <span style="color:var(--red);">*</span></label>
+          <input type="text" name="label" id="tmpl-label" class="form-input"
+                 placeholder="e.g. Under 18 Restriction" required />
+        </div>
+      </div>
+
+      <div style="margin-bottom:1rem;">
+        <label class="form-label">Description</label>
+        <textarea name="description" id="tmpl-description" class="form-input" rows="2"
+                  placeholder="Shown to admins in this panel…"></textarea>
+      </div>
+
+      <div style="margin-bottom:1rem;">
+        <label class="form-label">Default Restrictions Applied</label>
+        <div style="display:flex;flex-direction:column;gap:0.5rem;">
+          <label style="display:flex;align-items:center;gap:0.5rem;font-size:0.875rem;cursor:pointer;">
+            <input type="checkbox" name="no_firearm" id="tmpl-no-firearm" value="1" />
+            Cannot own a firearm (legal or illegal)
+          </label>
+          <label style="display:flex;align-items:center;gap:0.5rem;font-size:0.875rem;cursor:pointer;">
+            <input type="checkbox" name="no_create_priority" id="tmpl-no-create" value="1" />
+            Cannot create priorities
+          </label>
+          <label style="display:flex;align-items:center;gap:0.5rem;font-size:0.875rem;cursor:pointer;">
+            <input type="checkbox" name="no_join_priority" id="tmpl-no-join" value="1" />
+            Cannot participate in priorities
+          </label>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1rem;">
+        <div>
+          <label class="form-label">Duration (days)</label>
+          <input type="number" name="duration_days" id="tmpl-duration" class="form-input"
+                 placeholder="90 (blank = permanent)" min="1" />
+        </div>
+      </div>
+
+      <div style="margin-bottom:1rem;">
+        <label class="form-label">Extra Notes (included in DM)</label>
+        <textarea name="notes" id="tmpl-notes" class="form-input" rows="2"
+                  placeholder="Shown in the restriction DM and admin panel…"></textarea>
+      </div>
+
+      <label style="display:flex;align-items:center;gap:0.5rem;font-size:0.875rem;cursor:pointer;margin-bottom:1.25rem;">
+        <input type="checkbox" name="is_active" id="tmpl-active" value="1" checked />
+        Template is active (fires automatically on trigger)
+      </label>
+
+      <div style="display:flex;gap:0.5rem;">
+        <button type="submit" class="btn btn-primary" style="flex:1;justify-content:center;">
+          <i class="ti ti-check"></i> Save Template
+        </button>
+        <button type="button" onclick="closeModal('limit-tmpl-modal')" class="btn btn-ghost">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+<script>
+function openModal(id)  { var el = document.getElementById(id); if (el) el.classList.remove('hidden'); }
+function closeModal(id) { var el = document.getElementById(id); if (el) el.classList.add('hidden'); }
+
+document.addEventListener('click', function(e) {
+  if (e.target.classList.contains('modal-overlay')) e.target.classList.add('hidden');
+});
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.modal-overlay:not(.hidden)').forEach(function(m) { m.classList.add('hidden'); });
+  }
+});
+
+function openNewModal() {
+  document.getElementById('tmpl-modal-title').innerHTML = '<i class="ti ti-template"></i> New Template';
+  document.getElementById('tmpl-slug').value        = '';
+  document.getElementById('tmpl-slug').readOnly     = false;
+  document.getElementById('tmpl-label').value       = '';
+  document.getElementById('tmpl-description').value = '';
+  document.getElementById('tmpl-no-firearm').checked = true;
+  document.getElementById('tmpl-no-create').checked  = true;
+  document.getElementById('tmpl-no-join').checked    = true;
+  document.getElementById('tmpl-duration').value    = '90';
+  document.getElementById('tmpl-notes').value       = '';
+  document.getElementById('tmpl-active').checked    = true;
+  openModal('limit-tmpl-modal');
+}
+
+function openEditModal(data) {
+  document.getElementById('tmpl-modal-title').innerHTML = '<i class="ti ti-edit"></i> Edit Template';
+  document.getElementById('tmpl-slug').value            = data.slug || '';
+  document.getElementById('tmpl-slug').readOnly         = true;  // slug is immutable after creation
+  document.getElementById('tmpl-label').value           = data.label || '';
+  document.getElementById('tmpl-description').value     = data.description || '';
+  document.getElementById('tmpl-no-firearm').checked    = !!data.no_firearm;
+  document.getElementById('tmpl-no-create').checked     = !!data.no_create_priority;
+  document.getElementById('tmpl-no-join').checked       = !!data.no_join_priority;
+  document.getElementById('tmpl-duration').value        = data.duration_days || '';
+  document.getElementById('tmpl-notes').value           = data.notes || '';
+  document.getElementById('tmpl-active').checked        = !!data.is_active;
+  openModal('limit-tmpl-modal');
+}
+</script>
+
+<style>
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.85);
+  z-index: 9999;
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(4px);
+  padding: 1rem;
+}
+.modal-overlay.hidden { display: none !important; }
+.modal-box {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  max-width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+.modal-close {
+  background: none; border: none; color: var(--text-muted);
+  font-size: 1.4rem; cursor: pointer; line-height: 1; padding: 0;
+}
+.modal-close:hover { color: var(--text); }
+.badge-orange { background:rgba(249,115,22,0.15);color:#fb923c;border-color:rgba(249,115,22,0.3); }
+</style>
+{% endblock %}

@@ -1,0 +1,218 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Admin Dashboard{% endblock %}
+{% block admin_content %}
+
+{% if stats.unreviewed_flags > 0 %}
+<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:10px;padding:1rem 1.25rem;margin-bottom:1.25rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
+  <div style="display:flex;align-items:center;gap:0.875rem;">
+    <div style="width:40px;height:40px;border-radius:10px;background:#ef444422;display:flex;align-items:center;justify-content:center;color:#ef4444;font-size:1.2rem;flex-shrink:0;">
+      <i class="ti ti-alert-triangle"></i>
+    </div>
+    <div>
+      <div style="font-weight:700;color:#ef4444;font-size:0.95rem;">
+        {{ stats.unreviewed_flags }} Suspicious Economy Flag{{ 's' if stats.unreviewed_flags != 1 else '' }} Detected
+      </div>
+      <div style="font-size:0.82rem;color:#b91c1c;">
+        Player{{ 's have' if stats.unreviewed_flags != 1 else ' has' }} received more than $10,000 in a 24-hour window. Review required.
+      </div>
+    </div>
+  </div>
+  <a href="{{ url_for('analytics.economy_flags_page') }}" class="btn btn-sm" style="background:#ef4444;color:#fff;border:none;white-space:nowrap;">
+    <i class="ti ti-eye"></i> Review Flags
+  </a>
+</div>
+{% endif %}
+
+{% if stats.pending_reports > 0 %}
+<div style="background:rgba(245,158,11,0.07);border:1px solid rgba(245,158,11,0.35);border-radius:10px;padding:1rem 1.25rem;margin-bottom:1.25rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
+  <div style="display:flex;align-items:center;gap:0.875rem;">
+    <div style="width:40px;height:40px;border-radius:10px;background:rgba(245,158,11,0.15);display:flex;align-items:center;justify-content:center;color:#f59e0b;font-size:1.2rem;flex-shrink:0;">
+      <i class="ti ti-flag"></i>
+    </div>
+    <div>
+      <div style="font-weight:700;color:#f59e0b;font-size:0.95rem;">
+        {{ stats.pending_reports }} Pending Report{{ 's' if stats.pending_reports != 1 else '' }}
+      </div>
+      <div style="font-size:0.82rem;color:var(--text-muted);">
+        Community member{{ 's have' if stats.pending_reports != 1 else ' has' }} submitted a report awaiting staff review.
+      </div>
+    </div>
+  </div>
+  <a href="{{ url_for('reports.admin_reports', status='pending') }}" class="btn btn-sm" style="background:#f59e0b;color:#fff;border:none;white-space:nowrap;">
+    <i class="ti ti-eye"></i> Review Reports
+  </a>
+</div>
+{% endif %}
+
+<div class="page-header">
+  <div style="display:flex;align-items:center;justify-content:space-between;">
+    <div>
+      <h1 class="page-title">Dashboard</h1>
+      <p style="color:var(--text-muted);font-size:0.875rem;margin-top:0.25rem;">Welcome back, {{ current_user.username }}</p>
+    </div>
+    <div style="display:flex;gap:0.75rem;">
+      <a href="{{ url_for('admin.create_application_type') }}" class="btn btn-ghost btn-sm"><i class="ti ti-plus"></i> New App Type</a>
+      <a href="{{ url_for('admin.reviews') }}" class="btn btn-primary btn-sm"><i class="ti ti-file-check"></i> Review Queue <span style="background:rgba(255,255,255,0.2);border-radius:10px;padding:0 6px;font-size:0.75rem;">{{ stats.pending_applications }}</span></a>
+    </div>
+  </div>
+</div>
+
+<!-- Stat cards -->
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;margin-bottom:1.5rem;">
+  {% for label,val,icon,color in [
+    ('Total Users', stats.total_users, 'users', '#6366f1'),
+    ('Pending Apps', stats.pending_applications, 'clock', '#f59e0b'),
+    ('Approved', stats.approved_applications, 'circle-check', '#22c55e'),
+    ('Denied', stats.denied_applications, 'circle-x', '#ef4444'),
+    ('Live Players', stats.live_players, 'device-gamepad-2', '#06b6d4'),
+    ('App Types', stats.application_types, 'file-settings', '#8b5cf6'),
+  ] %}
+  <div class="stat-card" style="--accent:{{ color }};">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:0.5rem;">
+      <div>
+        <div class="stat-value" style="color:{{ color }};font-size:1.75rem;">{{ val }}</div>
+        <div class="stat-label">{{ label }}</div>
+      </div>
+      <div style="width:38px;height:38px;border-radius:10px;background:{{ color }}22;display:flex;align-items:center;justify-content:center;color:{{ color }};font-size:1.2rem;flex-shrink:0;">
+        <i class="ti ti-{{ icon }}"></i>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:1.5rem;margin-bottom:1.5rem;">
+  <!-- Application trend chart -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Applications (Last 7 Days)</span>
+    </div>
+    <canvas id="appsChart" height="80"></canvas>
+  </div>
+
+  <!-- Status breakdown -->
+  <div class="card">
+    <div class="card-header"><span class="card-title">Status Breakdown</span></div>
+    <canvas id="statusChart"></canvas>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:1.5rem;">
+  <!-- Recent Applications -->
+  <div class="card" style="padding:0;overflow:hidden;">
+    <div style="padding:1rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+      <span class="card-title">Recent Applications</span>
+      <a href="{{ url_for('admin.reviews') }}" style="font-size:0.75rem;color:var(--accent);text-decoration:none;">View all</a>
+    </div>
+    <table class="data-table">
+      <thead><tr><th>User</th><th>Type</th><th>Status</th><th>When</th></tr></thead>
+      <tbody>
+        {% for app in recent_applications %}
+        <tr>
+          <td><a href="{{ url_for('admin.review_application', app_id=app.id) }}" style="color:var(--accent);text-decoration:none;font-weight:600;">{{ app.applicant.username }}</a></td>
+          <td style="color:var(--text-muted);font-size:0.8rem;">{{ app.application_type.name }}</td>
+          <td><span class="badge badge-{{ app.status_badge_class }}">{{ app.status.replace('_',' ').title() }}</span></td>
+          <td style="color:var(--text-subtle);font-size:0.8rem;">{{ app.submitted_at.strftime('%d %b') }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" style="text-align:center;color:var(--text-subtle);padding:2rem;">No applications yet</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Recent Users -->
+  <div class="card" style="padding:0;overflow:hidden;">
+    <div style="padding:1rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+      <span class="card-title">New Users</span>
+      <a href="{{ url_for('admin.users') }}" style="font-size:0.75rem;color:var(--accent);text-decoration:none;">View all</a>
+    </div>
+    <table class="data-table">
+      <thead><tr><th>User</th><th>Discord</th><th>Role</th><th>Joined</th></tr></thead>
+      <tbody>
+        {% for user in recent_users %}
+        <tr>
+          <td>
+            <div style="display:flex;align-items:center;gap:0.5rem;">
+              {% if user.discord_avatar_url %}
+                <img src="{{ user.discord_avatar_url }}" class="avatar" style="width:24px;height:24px;" />
+              {% else %}
+                <div class="avatar" style="width:24px;height:24px;background:var(--accent-dim);font-size:0.65rem;">{{ user.username[0].upper() }}</div>
+              {% endif %}
+              <a href="{{ url_for('admin.user_detail', user_id=user.id) }}" style="color:var(--text-primary);text-decoration:none;font-weight:600;font-size:0.85rem;">{{ user.username }}</a>
+            </div>
+          </td>
+          <td>
+            {% if user.discord_id %}<span class="badge badge-blue" style="font-size:0.6rem;"><i class="ti ti-brand-discord"></i></span>
+            {% else %}<span style="color:var(--text-subtle);font-size:0.75rem;">—</span>{% endif %}
+          </td>
+          <td>
+            {% if user.primary_role %}
+              <span class="badge" style="background:{{ user.primary_role.color }}22;color:{{ user.primary_role.color }};border-color:{{ user.primary_role.color }}44;font-size:0.6rem;">{{ user.primary_role.display_name }}</span>
+            {% endif %}
+          </td>
+          <td style="color:var(--text-subtle);font-size:0.8rem;">{{ user.created_at.strftime('%d %b') }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" style="text-align:center;color:var(--text-subtle);padding:2rem;">No users yet</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Audit log -->
+<div class="card" style="padding:0;overflow:hidden;">
+  <div style="padding:1rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+    <span class="card-title">Recent Audit Activity</span>
+    <a href="{{ url_for('admin.audit_log') }}" style="font-size:0.75rem;color:var(--accent);text-decoration:none;">View all</a>
+  </div>
+  <div style="padding:0.5rem;">
+    {% for log in recent_audit %}
+    <div style="display:flex;align-items:center;gap:0.875rem;padding:0.625rem 0.75rem;border-radius:8px;font-size:0.8rem;">
+      <div style="width:32px;height:32px;border-radius:8px;background:var(--surface-3);display:flex;align-items:center;justify-content:center;color:var(--accent);flex-shrink:0;font-size:0.9rem;">
+        <i class="ti ti-{% if 'login' in log.action %}login{% elif 'ban' in log.action %}ban{% elif 'delete' in log.action %}trash{% elif 'approve' in log.action %}check{% elif 'deny' in log.action %}x{% else %}activity{% endif %}"></i>
+      </div>
+      <div style="flex:1;min-width:0;">
+        <div style="color:var(--text-primary);font-weight:500;">{{ log.action.replace('.',' › ').replace('_',' ').title() }}</div>
+        <div style="color:var(--text-subtle);">{{ log.actor.username if log.actor else 'System' }} · {{ log.ip_address or '' }}</div>
+      </div>
+      <div style="color:var(--text-subtle);flex-shrink:0;">{{ log.created_at.strftime('%H:%M') }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<script>
+const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#6366f1';
+const days = {{ daily_apps | tojson }};
+new Chart(document.getElementById('appsChart'), {
+  type: 'bar',
+  data: {
+    labels: days.map(d => d.day),
+    datasets: [{
+      label: 'Applications',
+      data: days.map(d => d.count),
+      backgroundColor: accent + '55',
+      borderColor: accent,
+      borderWidth: 2,
+      borderRadius: 6,
+    }]
+  },
+  options: { responsive:true, plugins:{legend:{display:false}}, scales:{x:{grid:{display:false}},y:{beginAtZero:true,grid:{color:'rgba(99,102,241,0.08)'}}} }
+});
+new Chart(document.getElementById('statusChart'), {
+  type: 'doughnut',
+  data: {
+    labels: ['Pending','Approved','Denied','Other'],
+    datasets:[{
+      data: [{{ stats.pending_applications }}, {{ stats.approved_applications }}, {{ stats.denied_applications }}, {{ stats.total_applications - stats.pending_applications - stats.approved_applications - stats.denied_applications }}],
+      backgroundColor: ['#f59e0b88','#22c55e88','#ef444488','#6b728088'],
+      borderColor: ['#f59e0b','#22c55e','#ef4444','#6b7280'],
+      borderWidth: 2,
+    }]
+  },
+  options: { responsive:true, plugins:{legend:{position:'bottom',labels:{font:{size:11},padding:12}}} }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,387 @@
+{% extends "base.html" %}
+{% block title %}{{ profile_user.username }}{% endblock %}
+
+{% block content %}
+<div style="max-width:1000px;margin:0 auto;padding:2rem 1.5rem;">
+
+  <!-- Profile header card -->
+  <div class="card" style="margin-bottom:1.25rem;padding:1.5rem;">
+    <div style="display:flex;align-items:flex-start;gap:1.25rem;flex-wrap:wrap;">
+      <!-- Avatar -->
+      <div style="position:relative;flex-shrink:0;">
+        {% if profile_user.discord_avatar_url %}
+          <img src="{{ profile_user.discord_avatar_url }}" class="avatar" style="width:72px;height:72px;border:3px solid var(--accent);" />
+        {% elif profile_user.avatar %}
+          <img src="{{ profile_user.avatar }}" class="avatar" style="width:72px;height:72px;border:3px solid var(--accent);" />
+        {% else %}
+          <div class="avatar" style="width:72px;height:72px;background:var(--accent-dim);font-size:1.75rem;border:3px solid var(--accent);">{{ profile_user.username[0].upper() }}</div>
+        {% endif %}
+        <!-- Online dot -->
+        {% if is_online %}
+          <span class="status-dot online" style="position:absolute;bottom:3px;right:3px;width:14px;height:14px;border:2px solid var(--surface-2);"></span>
+        {% endif %}
+      </div>
+
+      <!-- Name + roles -->
+      <div style="flex:1;min-width:180px;">
+        <div style="display:flex;align-items:center;gap:0.625rem;flex-wrap:wrap;margin-bottom:0.375rem;">
+          <h1 style="font-size:1.35rem;font-weight:800;letter-spacing:-0.02em;">{{ profile_user.username }}</h1>
+          {% if is_online %}
+            <span class="badge badge-green" id="online-status-badge" style="font-size:0.62rem;"><span class="status-dot online" style="width:5px;height:5px;margin-right:2px;"></span> In Game</span>
+          {% else %}
+            <span class="badge badge-green" id="online-status-badge" style="font-size:0.62rem;display:none;"><span class="status-dot online" style="width:5px;height:5px;margin-right:2px;"></span> In Game</span>
+          {% endif %}
+          {% if profile_user.is_banned %}
+            <span class="badge badge-red" style="font-size:0.62rem;">Banned</span>
+          {% endif %}
+        </div>
+        <div style="display:flex;gap:0.375rem;flex-wrap:wrap;margin-bottom:0.625rem;">
+          {% for role in profile_user.roles %}
+            <span class="badge" style="background:{{ role.color }}22;color:{{ role.color }};border-color:{{ role.color }}44;">{{ role.display_name }}</span>
+          {% endfor %}
+        </div>
+        {% if profile_user.bio %}
+          <p style="font-size:0.82rem;color:var(--text-muted);max-width:480px;line-height:1.5;">{{ profile_user.bio }}</p>
+        {% endif %}
+        <div style="font-size:0.72rem;color:var(--text-subtle);margin-top:0.375rem;">
+          {% if profile_user.discord_username %}<i class="ti ti-brand-discord" style="color:#5865F2;"></i> {{ profile_user.discord_username }} &nbsp;·&nbsp;{% endif %}
+          Member since {{ profile_user.created_at.strftime('%B %Y') }}
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div style="display:flex;flex-direction:column;gap:0.5rem;flex-shrink:0;">
+        {% if is_own %}
+          <a href="{{ url_for('profile.settings') }}" class="btn btn-ghost btn-sm"><i class="ti ti-settings"></i> Settings</a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:2fr 1fr;gap:1.25rem;">
+    <div>
+
+      <!-- In-game stats -->
+      <div class="card" style="margin-bottom:1.25rem;">
+        <div class="card-title" style="margin-bottom:0.875rem;">In-Game Statistics</div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.75rem;">
+
+          <div style="text-align:center;background:var(--surface-1);border-radius:8px;padding:0.875rem 0.5rem;border:1px solid var(--border);">
+            <div style="font-size:1.4rem;font-weight:800;color:#ef4444;font-family:'JetBrains Mono',monospace;">{{ kills }}</div>
+            <div style="font-size:0.68rem;color:var(--text-subtle);text-transform:uppercase;letter-spacing:0.06em;margin-top:0.25rem;">Kills</div>
+          </div>
+
+          <div style="text-align:center;background:var(--surface-1);border-radius:8px;padding:0.875rem 0.5rem;border:1px solid var(--border);">
+            <div style="font-size:1.4rem;font-weight:800;color:#22c55e;font-family:'JetBrains Mono',monospace;">{{ deaths }}</div>
+            <div style="font-size:0.68rem;color:var(--text-subtle);text-transform:uppercase;letter-spacing:0.06em;margin-top:0.25rem;">Deaths</div>
+          </div>
+
+          <div style="text-align:center;background:var(--surface-1);border-radius:8px;padding:0.875rem 0.5rem;border:1px solid var(--border);">
+            <div style="font-size:1.4rem;font-weight:800;color:#6366f1;font-family:'JetBrains Mono',monospace;">{{ kd }}</div>
+            <div style="font-size:0.68rem;color:var(--text-subtle);text-transform:uppercase;letter-spacing:0.06em;margin-top:0.25rem;">K/D Ratio</div>
+          </div>
+
+          <!-- Live ticking playtime -->
+          <div id="playtime-card" style="text-align:center;background:{% if is_online %}rgba(34,197,94,0.08){% else %}var(--surface-1){% endif %};border-radius:8px;padding:0.875rem 0.5rem;border:1px solid {% if is_online %}rgba(34,197,94,0.25){% else %}var(--border){% endif %};">
+            <div id="playtime-display" style="font-size:1.1rem;font-weight:800;color:#f59e0b;font-family:'JetBrains Mono',monospace;letter-spacing:-0.02em;">{{ total_playtime }}</div>
+            <div style="font-size:0.68rem;color:var(--text-subtle);text-transform:uppercase;letter-spacing:0.06em;margin-top:0.25rem;">
+              Playtime {% if is_online %}<span style="color:#22c55e;" id="live-tag">● LIVE</span>{% else %}<span id="live-tag" style="display:none;color:#22c55e;">● LIVE</span>{% endif %}
+            </div>
+          </div>
+
+        </div>
+
+        {% if current_session %}
+        <div id="session-bar" style="margin-top:0.75rem;padding:0.625rem 0.875rem;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);border-radius:8px;display:{% if is_online %}flex{% else %}none{% endif %};align-items:center;gap:0.5rem;font-size:0.78rem;">
+        {% else %}
+        <div id="session-bar" style="margin-top:0.75rem;padding:0.625rem 0.875rem;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);border-radius:8px;display:none;align-items:center;gap:0.5rem;font-size:0.78rem;">
+        {% endif %}
+          <span class="live-pulse" style="background:#22c55e;flex-shrink:0;"></span>
+          <span style="color:var(--text-muted);">Currently in session — session time:</span>
+          <span id="session-display" style="color:#22c55e;font-family:'JetBrains Mono',monospace;font-weight:700;">{{ '0m' }}</span>
+        </div>
+      </div>
+
+      <!-- Applications -->
+      {% if apps %}
+      <div class="card" style="margin-bottom:1.25rem;padding:0;overflow:hidden;">
+        <div style="padding:0.875rem 1rem;border-bottom:1px solid var(--border);">
+          <span class="card-title">Applications</span>
+        </div>
+        <table class="data-table">
+          <thead><tr><th>Type</th><th>Status</th><th>Date</th></tr></thead>
+          <tbody>
+            {% for app in apps %}
+            <tr>
+              <td style="font-weight:600;font-size:0.82rem;">{{ app.application_type.name }}</td>
+              <td><span class="badge badge-{{ app.status_badge_class }}">{{ app.status.replace('_',' ').title() }}</span></td>
+              <td style="font-size:0.78rem;color:var(--text-muted);">{{ app.submitted_at.strftime('%d %b %Y') }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+
+      <!-- Recent kills -->
+      {% if recent_kills %}
+      <div class="card" style="padding:0;overflow:hidden;">
+        <div style="padding:0.875rem 1rem;border-bottom:1px solid var(--border);">
+          <span class="card-title">Recent Kills</span>
+        </div>
+        <table class="data-table">
+          <thead><tr><th>Victim</th><th>Weapon</th><th>When</th></tr></thead>
+          <tbody>
+            {% for k in recent_kills %}
+            <tr>
+              <td style="font-weight:600;font-size:0.82rem;">{{ k.victim_name or '—' }}</td>
+              <td style="font-size:0.78rem;color:var(--text-muted);">{{ k.weapon or '—' }}</td>
+              <td style="font-size:0.75rem;color:var(--text-subtle);">{{ k.recorded_at.strftime('%d %b %H:%M') }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+
+      <!-- Crash / Timeout History -->
+      {% if crash_history or (profile_user.discord_id and (is_own or current_user.is_authenticated and current_user.is_admin)) %}
+      <div class="card" style="padding:0;overflow:hidden;margin-top:1.25rem;border-color:{% if unviewed_crashes > 0 %}rgba(239,68,68,0.35){% else %}var(--border){% endif %};">
+        <div style="padding:0.875rem 1rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:0.5rem;{% if unviewed_crashes > 0 %}background:rgba(239,68,68,0.06);{% endif %}">
+          <div style="display:flex;align-items:center;gap:0.5rem;">
+            <i class="ti ti-alert-circle" style="color:{% if crash_history %}#ef4444{% else %}var(--text-subtle){% endif %};font-size:1rem;"></i>
+            <span class="card-title">Crash & Timeout History</span>
+            {% if unviewed_crashes > 0 %}
+              <span class="badge badge-red" style="font-size:0.6rem;animation:pulse-badge 2s ease infinite;">{{ unviewed_crashes }} new</span>
+            {% endif %}
+          </div>
+          <span style="font-size:0.72rem;color:var(--text-subtle);">Last 30 days</span>
+        </div>
+
+        {% if not crash_history %}
+          <div style="padding:2rem;text-align:center;color:var(--text-subtle);font-size:0.82rem;">
+            <i class="ti ti-heart-check" style="font-size:1.5rem;display:block;margin-bottom:0.375rem;color:#22c55e;"></i>
+            No crashes or timeouts in the last 30 days
+          </div>
+        {% else %}
+          <!-- Summary bar -->
+          {% set crashes_count  = crash_history | selectattr('category','equalto','crash')   | list | length %}
+          {% set timeouts_count = crash_history | selectattr('category','equalto','timeout')  | list | length %}
+          {% set other_count    = crash_history | length - crashes_count - timeouts_count %}
+          <div style="display:flex;gap:0;border-bottom:1px solid var(--border);">
+            <div style="flex:1;padding:0.625rem 0.875rem;text-align:center;border-right:1px solid var(--border);">
+              <div style="font-size:1.2rem;font-weight:800;color:#ef4444;font-family:'JetBrains Mono',monospace;">{{ crashes_count }}</div>
+              <div style="font-size:0.65rem;color:var(--text-subtle);text-transform:uppercase;letter-spacing:0.06em;">Crashes</div>
+            </div>
+            <div style="flex:1;padding:0.625rem 0.875rem;text-align:center;border-right:1px solid var(--border);">
+              <div style="font-size:1.2rem;font-weight:800;color:#f59e0b;font-family:'JetBrains Mono',monospace;">{{ timeouts_count }}</div>
+              <div style="font-size:0.65rem;color:var(--text-subtle);text-transform:uppercase;letter-spacing:0.06em;">Timeouts</div>
+            </div>
+            <div style="flex:1;padding:0.625rem 0.875rem;text-align:center;">
+              <div style="font-size:1.2rem;font-weight:800;color:#8b5cf6;font-family:'JetBrains Mono',monospace;">{{ crash_history | length }}</div>
+              <div style="font-size:0.65rem;color:var(--text-subtle);text-transform:uppercase;letter-spacing:0.06em;">Total</div>
+            </div>
+          </div>
+
+          <!-- Incident list -->
+          <div style="display:flex;flex-direction:column;gap:0;max-height:480px;overflow-y:auto;" id="crash-history-list">
+            {% for diag in crash_history %}
+              {% set cat_color = '#ef4444' if diag.category == 'crash' else ('#f59e0b' if diag.category == 'timeout' else '#f97316') %}
+              <div style="border-bottom:1px solid var(--border);{% if not loop.last %}{% endif %}{% if not diag.is_viewed_user %}background:{{ cat_color }}06;{% endif %}">
+                <!-- Collapsed header -->
+                <div style="padding:0.625rem 0.875rem;display:flex;align-items:flex-start;gap:0.625rem;cursor:pointer;" onclick="toggleCrashItem(this)">
+                  <span class="badge" style="background:{{ cat_color }}22;color:{{ cat_color }};border-color:{{ cat_color }}44;font-size:0.58rem;flex-shrink:0;margin-top:1px;">{{ diag.category.upper() }}</span>
+                  <div style="flex:1;min-width:0;">
+                    <div style="font-weight:600;font-size:0.78rem;color:var(--text-primary);">{{ diag.diagnosis_label or 'Unknown Issue' }}</div>
+                    <div style="font-size:0.68rem;color:var(--text-subtle);margin-top:1px;">
+                      {{ diag.detected_at.strftime('%d %b %Y %H:%M') if diag.detected_at else '—' }}
+                      {% if diag.ping_at_crash and diag.ping_at_crash > 0 %}
+                        &nbsp;·&nbsp;<span style="{% if diag.ping_at_crash > 200 %}color:#ef4444;{% endif %}">{{ diag.ping_at_crash }}ms</span>
+                      {% endif %}
+                      {% if diag.session_seconds and diag.session_seconds > 0 %}
+                        &nbsp;·&nbsp;{{ (diag.session_seconds // 60) }}m session
+                      {% endif %}
+                    </div>
+                  </div>
+                  {% if not diag.is_viewed_user %}
+                    <span style="width:6px;height:6px;border-radius:50%;background:{{ cat_color }};flex-shrink:0;margin-top:5px;" title="New"></span>
+                  {% endif %}
+                  <i class="ti ti-chevron-down" style="color:var(--text-subtle);font-size:0.8rem;flex-shrink:0;transition:transform 0.2s;"></i>
+                </div>
+                <!-- Expanded detail -->
+                <div style="display:none;padding:0 0.875rem 0.75rem;border-top:1px solid var(--border);background:var(--surface-3);">
+                  <p style="font-size:0.76rem;color:var(--text-muted);margin:0.5rem 0 0.5rem;line-height:1.5;">{{ diag.diagnosis_text or '' }}</p>
+                  {% if diag.reason_raw %}
+                    <code style="display:block;font-size:0.68rem;background:var(--surface-2);border-radius:4px;padding:3px 8px;margin-bottom:0.5rem;word-break:break-all;color:var(--text-muted);">{{ diag.reason_raw }}</code>
+                  {% endif %}
+                  {% set steps = diag.fix_steps_list() %}
+                  {% if steps %}
+                    <div style="font-size:0.65rem;color:var(--text-subtle);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.25rem;">Suggested Fixes</div>
+                    <ul style="margin:0;padding-left:1rem;font-size:0.75rem;color:var(--text-primary);line-height:1.7;">
+                      {% for step in steps %}
+                        <li>{{ step }}</li>
+                      {% endfor %}
+                    </ul>
+                  {% endif %}
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      </div>
+      {% endif %}
+
+    </div>
+
+    <!-- Right sidebar -->
+    <div>
+      <div class="card" style="margin-bottom:1.25rem;">
+        <div class="card-title" style="margin-bottom:0.875rem;">Account Info</div>
+        <div style="display:flex;flex-direction:column;gap:0.375rem;font-size:0.8rem;">
+          {% for label, val, mono in [
+            ('Email', profile_user.email if is_own else '••••••@••••••', False),
+            ('Member Since', profile_user.created_at.strftime('%d %b %Y'), True),
+            ('Last Login', profile_user.last_login.strftime('%d %b %Y') if profile_user.last_login else 'Never', True),
+            ('Discord ID', profile_user.discord_id or 'Not connected', True),
+            ('2FA', '✓ Enabled' if profile_user.totp_enabled else '✗ Disabled', False),
+          ] %}
+          <div style="padding:0.45rem 0.625rem;background:var(--surface-1);border-radius:6px;">
+            <div style="font-size:0.65rem;color:var(--text-subtle);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:2px;">{{ label }}</div>
+            <div style="{% if mono %}font-family:'JetBrains Mono',monospace;font-size:0.75rem;{% endif %}word-break:break-all;">{{ val }}</div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      {% if profile_user.discord_id %}
+      <div class="card" style="border-color:rgba(88,101,242,0.3);">
+        <div style="display:flex;align-items:center;gap:0.75rem;">
+          {% if profile_user.discord_avatar_url %}
+            <img src="{{ profile_user.discord_avatar_url }}" class="avatar" style="width:36px;height:36px;" />
+          {% endif %}
+          <div style="flex:1;">
+            <div style="font-weight:700;font-size:0.85rem;">Discord Connected</div>
+            <div style="font-size:0.78rem;color:var(--text-muted);">{{ profile_user.discord_username }}</div>
+          </div>
+          <i class="ti ti-brand-discord" style="font-size:1.25rem;color:#5865F2;"></i>
+        </div>
+      </div>
+      {% elif is_own %}
+      <div class="card" style="border-color:rgba(88,101,242,0.3);background:rgba(88,101,242,0.05);">
+        <div style="font-weight:600;margin-bottom:0.375rem;font-size:0.875rem;">Connect Discord</div>
+        <p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.75rem;">Link your Discord to apply and track stats.</p>
+        <a href="{{ url_for('discord_oauth.connect') }}" class="btn btn-sm" style="background:#5865F2;color:#fff;width:100%;justify-content:center;">Connect</a>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<script>
+// Crash history item expand/collapse
+function toggleCrashItem(header) {
+  var detail = header.nextElementSibling;
+  var chevron = header.querySelector('.ti-chevron-down');
+  var isOpen = detail.style.display !== 'none';
+  detail.style.display = isOpen ? 'none' : 'block';
+  if (chevron) chevron.style.transform = isOpen ? '' : 'rotate(180deg)';
+}
+
+// Live ticking playtime counter
+let totalSecs = {{ total_seconds|int }};
+let liveSecs  = {{ live_seconds|int }};
+let isOnline  = {{ 'true' if is_online else 'false' }};
+
+function fmtSecs(s) {
+  s = Math.max(0, Math.floor(s));
+  const d = Math.floor(s / 86400);
+  const h = Math.floor((s % 86400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  let parts = [];
+  if (d) parts.push(d + 'd');
+  if (h) parts.push(h + 'h');
+  if (m) parts.push(m + 'm');
+  if (sec && !d) parts.push(sec + 's');
+  return parts.length ? parts.join(' ') : '0m';
+}
+
+// Tick every second when online
+if (isOnline) {
+  setInterval(() => {
+    totalSecs++;
+    liveSecs++;
+    const pd = document.getElementById('playtime-display');
+    const sd = document.getElementById('session-display');
+    if (pd) pd.textContent = fmtSecs(totalSecs);
+    if (sd) sd.textContent = fmtSecs(liveSecs);
+  }, 1000);
+}
+
+// Poll live status every 10 seconds
+function pollStatus() {
+  fetch('/profile/{{ profile_user.username }}/live-time')
+    .then(r => r.json())
+    .then(d => {
+      const wasOnline = isOnline;
+      isOnline = d.online;
+
+      if (d.online) {
+        totalSecs = d.total_seconds || totalSecs;
+        liveSecs  = d.live_seconds  || liveSecs;
+
+        // Update displays
+        const pd = document.getElementById('playtime-display');
+        const sd = document.getElementById('session-display');
+        if (pd) pd.textContent = fmtSecs(totalSecs);
+        if (sd) sd.textContent = fmtSecs(liveSecs);
+
+        // Show online badge if not already visible
+        const badge = document.getElementById('online-status-badge');
+        if (badge) badge.style.display = 'inline-flex';
+        const dot = document.getElementById('online-dot');
+        if (dot) dot.style.display = 'block';
+
+        // Show session bar
+        const sessionBar = document.getElementById('session-bar');
+        if (sessionBar) sessionBar.style.display = 'flex';
+
+        // Green tint the playtime card
+        const ptCard = document.getElementById('playtime-card');
+        if (ptCard) {
+          ptCard.style.background = 'rgba(34,197,94,0.08)';
+          ptCard.style.borderColor = 'rgba(34,197,94,0.25)';
+        }
+      } else {
+        // Went offline
+        const badge = document.getElementById('online-status-badge');
+        if (badge) badge.style.display = 'none';
+        const sessionBar = document.getElementById('session-bar');
+        if (sessionBar) sessionBar.style.display = 'none';
+        const ptCard = document.getElementById('playtime-card');
+        if (ptCard) {
+          ptCard.style.background = 'var(--surface-1)';
+          ptCard.style.borderColor = 'var(--border)';
+        }
+        liveSecs = 0;
+        if (!wasOnline) {
+          // Was already offline, just update total
+          const pd = document.getElementById('playtime-display');
+          if (pd) pd.textContent = fmtSecs(totalSecs);
+        }
+      }
+    }).catch(() => {});
+}
+
+// Poll immediately then every 10s
+pollStatus();
+setInterval(pollStatus, 10000);
+</script>
+
+<style>
+@keyframes pulse-badge {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
+}
+</style>
+{% endblock %}

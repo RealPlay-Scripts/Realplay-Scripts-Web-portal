@@ -1,0 +1,373 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Report #{{ report.id }}{% endblock %}
+{% block admin_content %}
+
+<!-- Back -->
+<a href="{{ url_for('reports.admin_reports') }}"
+   style="color:var(--text-muted);font-size:0.8rem;text-decoration:none;display:inline-flex;align-items:center;gap:0.25rem;margin-bottom:1rem;">
+  <i class="ti ti-arrow-left"></i> Back to Reports
+</a>
+
+<div style="display:grid;grid-template-columns:1fr 340px;gap:1.25rem;align-items:start;">
+
+  <!-- ── LEFT: Info + Chat ── -->
+  <div>
+    <!-- Header -->
+    <div class="card" style="padding:1.25rem 1.5rem;margin-bottom:1.25rem;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:1rem;">
+        <div>
+          <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.375rem;">
+            {% if report.report_type == 'player' %}
+              <span style="background:rgba(239,68,68,0.12);color:#f87171;border:1px solid rgba(239,68,68,0.2);border-radius:5px;padding:0.1rem 0.5rem;font-size:0.7rem;font-weight:600;text-transform:uppercase;">
+                <i class="ti ti-user-x"></i> Player Report
+              </span>
+            {% else %}
+              <span style="background:rgba(99,102,241,0.12);color:#a5b4fc;border:1px solid rgba(99,102,241,0.2);border-radius:5px;padding:0.1rem 0.5rem;font-size:0.7rem;font-weight:600;text-transform:uppercase;">
+                <i class="ti ti-bug"></i> Bug Report
+              </span>
+            {% endif %}
+            <span style="color:var(--text-subtle);font-size:0.78rem;">#{{ report.id }}</span>
+          </div>
+          <h2 style="margin:0;font-size:1.15rem;">{{ report.title }}</h2>
+          <p style="color:var(--text-muted);font-size:0.78rem;margin:0.25rem 0 0;">
+            By <a href="{{ url_for('profile.view', username=report.reporter.username) }}" style="color:var(--accent);text-decoration:none;">{{ report.reporter.username }}</a>
+            &bull; {{ report.created_at.strftime('%d %b %Y %H:%M UTC') }}
+          </p>
+        </div>
+        <span style="background:{{ status_colors[report.status] }}22;color:{{ status_colors[report.status] }};border:1px solid {{ status_colors[report.status] }}44;border-radius:20px;padding:0.35rem 1rem;font-size:0.78rem;font-weight:600;white-space:nowrap;">
+          <i class="ti ti-{{ status_icons[report.status] }}"></i> {{ status_labels[report.status] }}
+        </span>
+      </div>
+
+      <!-- Progress -->
+      {% set steps = ['pending','seen','in_progress','waiting','resolved'] %}
+      {% set cur_idx = steps.index(report.status) if report.status in steps else 0 %}
+      <div style="margin-bottom:0.375rem;">
+        <div style="display:flex;align-items:center;height:6px;border-radius:6px;overflow:hidden;gap:2px;">
+          {% for s in steps %}
+          {% set idx = loop.index0 %}
+          <div style="flex:1;height:100%;background:{% if idx <= cur_idx %}{{ status_colors[s] }}{% else %}var(--surface-3){% endif %};border-radius:3px;"></div>
+          {% endfor %}
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:0.25rem;">
+          {% for s in steps %}
+          <span style="font-size:0.6rem;color:{% if s==report.status %}{{ status_colors[s] }}{% else %}var(--text-subtle){% endif %};font-weight:{% if s==report.status %}600{% else %}400{% endif %};">{{ status_labels[s] }}</span>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Details -->
+    <div class="card" style="padding:1.25rem 1.5rem;margin-bottom:1.25rem;">
+      <div class="card-title" style="margin-bottom:0.875rem;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);">Report Details</div>
+
+      {% if report.report_type == 'player' and report.reported_player %}
+      <div style="display:flex;gap:0.75rem;margin-bottom:0.75rem;">
+        <span style="color:var(--text-subtle);font-size:0.78rem;min-width:140px;">Reported Player</span>
+        <span style="font-size:0.875rem;color:var(--text);font-weight:500;">{{ report.reported_player }}</span>
+      </div>
+      {% endif %}
+      {% if report.server_id %}
+      <div style="display:flex;gap:0.75rem;margin-bottom:0.75rem;">
+        <span style="color:var(--text-subtle);font-size:0.78rem;min-width:140px;">Server / Session</span>
+        <span style="font-size:0.875rem;color:var(--text);">{{ report.server_id }}</span>
+      </div>
+      {% endif %}
+
+      <div style="margin-bottom:0.875rem;">
+        <div style="color:var(--text-subtle);font-size:0.78rem;margin-bottom:0.375rem;">Description</div>
+        <div style="font-size:0.875rem;color:var(--text);line-height:1.6;white-space:pre-wrap;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:0.875rem;">{{ report.description }}</div>
+      </div>
+      {% if report.steps_to_reproduce %}
+      <div style="margin-bottom:0.875rem;">
+        <div style="color:var(--text-subtle);font-size:0.78rem;margin-bottom:0.375rem;">Steps to Reproduce</div>
+        <div style="font-size:0.875rem;color:var(--text);line-height:1.6;white-space:pre-wrap;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:0.875rem;">{{ report.steps_to_reproduce }}</div>
+      </div>
+      {% endif %}
+      {% if report.expected_behavior %}
+      <div>
+        <div style="color:var(--text-subtle);font-size:0.78rem;margin-bottom:0.375rem;">Expected Behaviour</div>
+        <div style="font-size:0.875rem;color:var(--text);">{{ report.expected_behavior }}</div>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Private chat (reporter) -->
+    <div class="card" id="chat" style="padding:1.25rem 1.5rem;">
+      <div class="card-title" style="margin-bottom:1rem;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);">
+        <i class="ti ti-messages"></i> Private Communication
+        <span style="float:right;font-size:0.68rem;color:var(--text-subtle);font-weight:400;text-transform:none;letter-spacing:0;">Reporter ↔ Staff</span>
+      </div>
+
+      {% if messages %}
+      <div style="display:flex;flex-direction:column;gap:0.875rem;margin-bottom:1.25rem;max-height:480px;overflow-y:auto;padding-right:0.25rem;" id="chat-scroll">
+        {% for msg in messages %}
+        {% set is_mine = msg.user_id == current_user.id %}
+        <div style="display:flex;gap:0.75rem;{% if is_mine %}flex-direction:row-reverse;{% endif %}">
+          {% if msg.author.discord_avatar_url %}
+            <img src="{{ msg.author.discord_avatar_url }}" style="width:30px;height:30px;border-radius:50%;flex-shrink:0;" />
+          {% else %}
+            <div style="width:30px;height:30px;border-radius:50%;background:{% if msg.is_staff %}var(--accent-dim){% else %}var(--surface-3){% endif %};display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:600;color:{% if msg.is_staff %}var(--accent){% else %}var(--text-muted){% endif %};flex-shrink:0;">
+              {{ msg.author.username[0].upper() }}
+            </div>
+          {% endif %}
+          <div style="max-width:80%;">
+            <div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.2rem;{% if is_mine %}justify-content:flex-end;{% endif %}">
+              <span style="font-size:0.72rem;font-weight:600;color:{% if msg.is_staff %}var(--accent){% else %}var(--text){% endif %};">
+                {{ msg.author.username }}{% if msg.is_staff %} <span style="font-size:0.62rem;opacity:0.7;">[Staff]</span>{% endif %}
+              </span>
+              <span style="font-size:0.65rem;color:var(--text-subtle);">{{ msg.created_at.strftime('%d %b, %H:%M') }}</span>
+            </div>
+            <div style="background:{% if is_mine %}var(--accent-dim){% else %}var(--surface-3){% endif %};border:1px solid {% if is_mine %}rgba(99,102,241,0.25){% else %}var(--border){% endif %};border-radius:{% if is_mine %}10px 10px 3px 10px{% else %}10px 10px 10px 3px{% endif %};padding:0.5rem 0.75rem;font-size:0.82rem;color:var(--text);line-height:1.5;white-space:pre-wrap;">{{ msg.content }}</div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div style="text-align:center;padding:1.5rem;color:var(--text-muted);font-size:0.8rem;margin-bottom:1rem;">
+        <i class="ti ti-message-circle" style="font-size:1.5rem;display:block;margin-bottom:0.375rem;"></i>
+        No messages yet. Start the conversation below.
+      </div>
+      {% endif %}
+
+      {% if report.status != 'resolved' %}
+      <form method="POST" action="{{ url_for('reports.admin_post_message', report_id=report.id) }}">
+        <div style="display:flex;gap:0.625rem;align-items:flex-end;">
+          <textarea name="content" class="form-input" rows="2" required
+                    placeholder="Send a message to the reporter…"
+                    style="flex:1;resize:vertical;min-height:56px;"></textarea>
+          <button type="submit" class="btn btn-primary" style="height:56px;white-space:nowrap;">
+            <i class="ti ti-send"></i> Send
+          </button>
+        </div>
+      </form>
+      {% else %}
+      <div style="text-align:center;padding:0.75rem;color:var(--text-subtle);font-size:0.78rem;border-top:1px solid var(--border);margin-top:0.25rem;">
+        Report resolved — thread closed.
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Suspect chat (reported user) — player reports only -->
+    {% if report.report_type == 'player' %}
+    <div class="card" id="suspect-chat" style="padding:1.25rem 1.5rem;margin-top:1.25rem;border-color:rgba(249,115,22,0.25);">
+      <div class="card-title" style="margin-bottom:1rem;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:#fb923c;">
+        <i class="ti ti-shield-exclamation"></i> Reported User Communication
+        <span style="float:right;font-size:0.68rem;color:var(--text-subtle);font-weight:400;text-transform:none;letter-spacing:0;">Staff ↔ Reported User only</span>
+      </div>
+
+      {% if not report.reported_user %}
+      <div style="background:rgba(249,115,22,0.07);border:1px solid rgba(249,115,22,0.2);border-radius:8px;padding:1rem;margin-bottom:1rem;font-size:0.82rem;color:var(--text-muted);">
+        <i class="ti ti-user-question" style="color:#fb923c;"></i>
+        No reported user linked yet. Link a user account in the sidebar to enable this chat and send them an investigation notice.
+      </div>
+      {% else %}
+      <div style="display:flex;align-items:center;gap:0.625rem;background:rgba(249,115,22,0.07);border:1px solid rgba(249,115,22,0.2);border-radius:8px;padding:0.625rem 0.875rem;margin-bottom:1rem;">
+        {% if report.reported_user.discord_avatar_url %}
+          <img src="{{ report.reported_user.discord_avatar_url }}" style="width:24px;height:24px;border-radius:50%;" />
+        {% else %}
+          <div style="width:24px;height:24px;border-radius:50%;background:rgba(249,115,22,0.2);display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:700;color:#fb923c;">{{ report.reported_user.username[0].upper() }}</div>
+        {% endif %}
+        <span style="font-size:0.8rem;color:var(--text);font-weight:500;">{{ report.reported_user.username }}</span>
+        <span style="font-size:0.7rem;color:var(--text-subtle);">{% if report.reported_user.discord_id %}Discord linked{% else %}No Discord linked{% endif %}</span>
+      </div>
+
+      {% if suspect_messages %}
+      <div style="display:flex;flex-direction:column;gap:0.875rem;margin-bottom:1.25rem;max-height:380px;overflow-y:auto;padding-right:0.25rem;" id="suspect-scroll">
+        {% for msg in suspect_messages %}
+        {% set is_mine = msg.user_id == current_user.id %}
+        <div style="display:flex;gap:0.75rem;{% if is_mine %}flex-direction:row-reverse;{% endif %}">
+          {% if msg.author.discord_avatar_url %}
+            <img src="{{ msg.author.discord_avatar_url }}" style="width:30px;height:30px;border-radius:50%;flex-shrink:0;" />
+          {% else %}
+            <div style="width:30px;height:30px;border-radius:50%;background:{% if msg.is_staff %}rgba(249,115,22,0.15){% else %}var(--surface-3){% endif %};display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:600;color:{% if msg.is_staff %}#fb923c{% else %}var(--text-muted){% endif %};flex-shrink:0;">
+              {{ msg.author.username[0].upper() }}
+            </div>
+          {% endif %}
+          <div style="max-width:80%;">
+            <div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.2rem;{% if is_mine %}justify-content:flex-end;{% endif %}">
+              <span style="font-size:0.72rem;font-weight:600;color:{% if msg.is_staff %}#fb923c{% else %}var(--text){% endif %};">
+                {{ msg.author.username }}{% if msg.is_staff %} <span style="font-size:0.62rem;opacity:0.7;">[Staff]</span>{% endif %}
+              </span>
+              <span style="font-size:0.65rem;color:var(--text-subtle);">{{ msg.created_at.strftime('%d %b, %H:%M') }}</span>
+            </div>
+            <div style="background:{% if is_mine %}rgba(249,115,22,0.12){% else %}var(--surface-3){% endif %};border:1px solid {% if is_mine %}rgba(249,115,22,0.25){% else %}var(--border){% endif %};border-radius:{% if is_mine %}10px 10px 3px 10px{% else %}10px 10px 10px 3px{% endif %};padding:0.5rem 0.75rem;font-size:0.82rem;color:var(--text);line-height:1.5;white-space:pre-wrap;">{{ msg.content }}</div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div style="text-align:center;padding:1.25rem;color:var(--text-muted);font-size:0.8rem;margin-bottom:1rem;">
+        <i class="ti ti-shield-question" style="font-size:1.5rem;display:block;margin-bottom:0.375rem;color:#fb923c;opacity:0.5;"></i>
+        No messages yet with the reported user.
+      </div>
+      {% endif %}
+
+      {% if report.status != 'resolved' %}
+      <form method="POST" action="{{ url_for('reports.admin_post_suspect_message', report_id=report.id) }}">
+        <div style="display:flex;gap:0.625rem;align-items:flex-end;">
+          <textarea name="content" class="form-input" rows="2" required
+                    placeholder="Send a message to the reported user…"
+                    style="flex:1;resize:vertical;min-height:56px;border-color:rgba(249,115,22,0.3);"></textarea>
+          <button type="submit" class="btn btn-sm" style="height:56px;white-space:nowrap;background:rgba(249,115,22,0.15);color:#fb923c;border:1px solid rgba(249,115,22,0.3);">
+            <i class="ti ti-send"></i> Send
+          </button>
+        </div>
+      </form>
+      {% else %}
+      <div style="text-align:center;padding:0.75rem;color:var(--text-subtle);font-size:0.78rem;border-top:1px solid rgba(249,115,22,0.15);margin-top:0.25rem;">
+        Case resolved — thread closed.
+      </div>
+      {% endif %}
+      {% endif %}
+    </div>
+    {% endif %}
+
+  <!-- ── RIGHT: Management panel ── -->
+  <div style="position:sticky;top:1rem;">
+
+    <!-- Update status -->
+    <div class="card" style="padding:1.25rem;margin-bottom:1rem;">
+      <div class="card-title" style="margin-bottom:0.875rem;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);">Manage Report</div>
+      <form method="POST" action="{{ url_for('reports.admin_update_report', report_id=report.id) }}">
+        <div style="margin-bottom:0.875rem;">
+          <label class="form-label" style="font-size:0.78rem;">Status</label>
+          <select name="status" class="form-input" style="font-size:0.85rem;">
+            {% for s in statuses %}
+            <option value="{{ s }}" {% if report.status == s %}selected{% endif %}
+              style="color:{{ status_colors[s] }}">
+              {{ status_labels[s] }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div style="margin-bottom:0.875rem;">
+          <label class="form-label" style="font-size:0.78rem;">Assign To</label>
+          <select name="assigned_to" class="form-input" style="font-size:0.85rem;">
+            <option value="0">— Unassigned —</option>
+            {% for s in staff %}
+            <option value="{{ s.id }}" {% if report.assigned_to == s.id %}selected{% endif %}>{{ s.username }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div style="margin-bottom:1rem;">
+          <label class="form-label" style="font-size:0.78rem;">Staff Note (shown to reporter on resolve)</label>
+          <textarea name="staff_note" class="form-input" rows="3" style="font-size:0.82rem;"
+                    placeholder="Optional note about the outcome…">{{ report.staff_note or '' }}</textarea>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;">
+          <i class="ti ti-check"></i> Update Report
+        </button>
+      </form>
+    </div>
+
+    <!-- Reporter info -->
+    <div class="card" style="padding:1.25rem;margin-bottom:1rem;">
+      <div class="card-title" style="margin-bottom:0.875rem;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);">Reporter</div>
+      <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.875rem;">
+        {% if report.reporter.discord_avatar_url %}
+          <img src="{{ report.reporter.discord_avatar_url }}" style="width:38px;height:38px;border-radius:50%;" />
+        {% else %}
+          <div style="width:38px;height:38px;border-radius:50%;background:var(--accent-dim);display:flex;align-items:center;justify-content:center;font-size:1rem;font-weight:600;color:var(--accent);">{{ report.reporter.username[0].upper() }}</div>
+        {% endif %}
+        <div>
+          <div style="font-weight:600;font-size:0.875rem;">{{ report.reporter.username }}</div>
+          <div style="font-size:0.72rem;color:var(--text-muted);">
+            {% if report.reporter.primary_role %}
+              <span style="color:{{ report.reporter.primary_role.color }};">{{ report.reporter.primary_role.display_name }}</span>
+            {% else %}No role{% endif %}
+          </div>
+        </div>
+      </div>
+      <a href="{{ url_for('admin.user_detail', user_id=report.reporter.id) }}" class="btn btn-ghost btn-sm" style="width:100%;justify-content:center;">
+        <i class="ti ti-user"></i> View Profile
+      </a>
+    </div>
+
+    <!-- Reported user (player reports only) -->
+    {% if report.report_type == 'player' %}
+    <div class="card" style="padding:1.25rem;margin-bottom:1rem;border-color:rgba(249,115,22,0.25);">
+      <div class="card-title" style="margin-bottom:0.875rem;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:#fb923c;">
+        <i class="ti ti-shield-exclamation"></i> Reported User
+      </div>
+
+      {% if report.reported_user %}
+      <!-- User is linked -->
+      <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.875rem;">
+        {% if report.reported_user.discord_avatar_url %}
+          <img src="{{ report.reported_user.discord_avatar_url }}" style="width:38px;height:38px;border-radius:50%;border:2px solid rgba(249,115,22,0.4);" />
+        {% else %}
+          <div style="width:38px;height:38px;border-radius:50%;background:rgba(249,115,22,0.15);display:flex;align-items:center;justify-content:center;font-size:1rem;font-weight:600;color:#fb923c;border:2px solid rgba(249,115,22,0.3);">{{ report.reported_user.username[0].upper() }}</div>
+        {% endif %}
+        <div>
+          <div style="font-weight:600;font-size:0.875rem;">{{ report.reported_user.username }}</div>
+          <div style="font-size:0.72rem;color:var(--text-muted);">
+            {% if report.reported_user.discord_id %}
+              <span style="color:#fb923c;"><i class="ti ti-brand-discord"></i> Discord linked</span>
+            {% else %}
+              <span style="color:var(--text-subtle);">No Discord linked</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:0.5rem;">
+        <a href="{{ url_for('admin.user_detail', user_id=report.reported_user.id) }}" class="btn btn-ghost btn-sm" style="width:100%;justify-content:center;">
+          <i class="ti ti-user"></i> View Profile
+        </a>
+        <a href="#suspect-chat" class="btn btn-sm" style="width:100%;justify-content:center;background:rgba(249,115,22,0.12);color:#fb923c;border:1px solid rgba(249,115,22,0.3);">
+          <i class="ti ti-messages"></i> Go to Chat
+        </a>
+        <form method="POST" action="{{ url_for('reports.admin_unlink_reported_user', report_id=report.id) }}"
+              onsubmit="return confirm('Unlink this user from the report?');" style="margin:0;">
+          <button type="submit" class="btn btn-ghost btn-sm" style="width:100%;justify-content:center;color:var(--text-subtle);font-size:0.72rem;">
+            <i class="ti ti-unlink"></i> Unlink User
+          </button>
+        </form>
+      </div>
+
+      {% else %}
+      <!-- No user linked yet -->
+      <p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.875rem;">
+        Reported as: <strong style="color:var(--text);">{{ report.reported_player or '—' }}</strong><br>
+        <span style="font-size:0.72rem;">Link their account to send Discord DMs and open a private chat.</span>
+      </p>
+      <form method="POST" action="{{ url_for('reports.admin_link_reported_user', report_id=report.id) }}">
+        <div style="display:flex;gap:0.5rem;align-items:center;">
+          <input type="text" name="reported_username" class="form-input"
+                 placeholder="Username…" required
+                 style="font-size:0.82rem;flex:1;" />
+          <button type="submit" class="btn btn-sm" style="white-space:nowrap;background:rgba(249,115,22,0.15);color:#fb923c;border:1px solid rgba(249,115,22,0.3);">
+            <i class="ti ti-link"></i> Link
+          </button>
+        </div>
+      </form>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Danger zone -->
+    <div class="card" style="padding:1.25rem;border-color:rgba(239,68,68,0.2);">
+      <div class="card-title" style="margin-bottom:0.875rem;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:#f87171;">Danger Zone</div>
+      <form method="POST" action="{{ url_for('reports.admin_delete_report', report_id=report.id) }}"
+            onsubmit="return confirm('Delete this report? This cannot be undone.');">
+        <button type="submit" class="btn btn-danger btn-sm" style="width:100%;justify-content:center;">
+          <i class="ti ti-trash"></i> Delete Report
+        </button>
+      </form>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// Auto-scroll both chats to bottom
+var cs = document.getElementById('chat-scroll');
+if (cs) cs.scrollTop = cs.scrollHeight;
+var ss = document.getElementById('suspect-scroll');
+if (ss) ss.scrollTop = ss.scrollHeight;
+</script>
+
+{% endblock %}

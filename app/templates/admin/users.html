@@ -1,0 +1,227 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Users{% endblock %}
+{% block admin_content %}
+<div class="page-header">
+  <div style="display:flex;align-items:center;justify-content:space-between;">
+    <div style="display:flex;align-items:center;gap:1rem;">
+      <h1 class="page-title">Users <span style="color:var(--text-muted);font-weight:400;font-size:1rem;">({{ pagination.total }})</span></h1>
+      <span id="live-count-badge" style="display:none;" class="badge badge-green" style="font-size:0.75rem;"></span>
+    </div>
+    <a href="{{ url_for('discord_oauth.admin_sync_all') }}" class="btn btn-ghost btn-sm" id="sync-all-btn"
+       onclick="event.preventDefault();syncAll(this)">
+      <i class="ti ti-refresh"></i> Sync All Discord
+    </a>
+  </div>
+</div>
+
+<!-- Filters -->
+<div class="card" style="padding:0.875rem 1.25rem;margin-bottom:1rem;">
+  <form method="GET" style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:flex-end;">
+    <div style="flex:1;min-width:200px;">
+      <label class="form-label">Search</label>
+      <input type="text" name="q" value="{{ search }}" class="form-input" placeholder="Username, email, Discord…" />
+    </div>
+    <div style="min-width:160px;">
+      <label class="form-label">Role</label>
+      <select name="role" class="form-input">
+        <option value="">All roles</option>
+        {% for role in roles %}<option value="{{ role.name }}" {% if role_filter==role.name %}selected{% endif %}>{{ role.display_name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div style="min-width:160px;">
+      <label class="form-label">Status</label>
+      <select name="status" class="form-input">
+        <option value="">All</option>
+        <option value="banned" {% if status_filter=='banned' %}selected{% endif %}>Banned</option>
+        <option value="inactive" {% if status_filter=='inactive' %}selected{% endif %}>Inactive</option>
+        <option value="no_discord" {% if status_filter=='no_discord' %}selected{% endif %}>No Discord</option>
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary btn-sm">Filter</button>
+    <a href="{{ url_for('admin.users') }}" class="btn btn-ghost btn-sm">Clear</a>
+  </form>
+</div>
+
+<div class="card" style="padding:0;overflow:hidden;">
+  <div class="scroll-x">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>User</th><th>Discord</th><th>Roles</th><th>Applications</th><th>Playtime</th><th>Last Login</th><th>Status</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for user in users %}
+        <tr>
+          <td>
+            <div style="display:flex;align-items:center;gap:0.625rem;">
+              {% if user.discord_avatar_url %}
+                <img src="{{ user.discord_avatar_url }}" class="avatar" style="width:32px;height:32px;" />
+              {% else %}
+                <div class="avatar" style="width:32px;height:32px;background:var(--accent-dim);font-size:0.8rem;">{{ user.username[0].upper() }}</div>
+              {% endif %}
+              <div>
+                <div style="font-weight:600;font-size:0.875rem;">{{ user.username }}</div>
+                <div style="font-size:0.75rem;color:var(--text-subtle);">{{ user.email }}</div>
+              </div>
+            </div>
+          </td>
+          <td>
+            {% if user.discord_id %}
+              <div style="font-size:0.8rem;color:var(--text-muted);">{{ user.discord_username }}</div>
+              <div style="font-size:0.7rem;color:var(--text-subtle);font-family:'JetBrains Mono',monospace;">{{ user.discord_id }}</div>
+            {% else %}
+              <span style="color:var(--text-subtle);font-size:0.8rem;">Not connected</span>
+            {% endif %}
+          </td>
+          <td>
+            <div style="display:flex;flex-wrap:wrap;gap:3px;">
+              {% for role in user.roles %}
+                <span class="badge" style="background:{{ role.color }}22;color:{{ role.color }};border-color:{{ role.color }}44;font-size:0.6rem;">{{ role.display_name }}</span>
+              {% endfor %}
+            </div>
+          </td>
+          <td style="text-align:center;">
+            <span class="badge badge-gray">{{ user.applications.count() }}</span>
+          </td>
+          <td style="white-space:nowrap;" id="pt-{{ user.discord_id or '' }}">
+            {% if user.discord_id %}
+              <span style="color:var(--text-subtle);font-size:0.75rem;">…</span>
+            {% else %}
+              <span style="color:var(--text-subtle);font-size:0.75rem;">—</span>
+            {% endif %}
+          </td>
+          <td style="color:var(--text-muted);font-size:0.8rem;">
+            {% if user.last_login %}{{ user.last_login.strftime('%d %b %Y') }}{% else %}Never{% endif %}
+          </td>
+          <td>
+            {% if user.is_banned %}<span class="badge badge-red">Banned</span>
+            {% elif not user.is_active %}<span class="badge badge-gray">Inactive</span>
+            {% else %}<span class="badge badge-green">Active</span>{% endif %}
+            {% if user.totp_enabled %}<span class="badge badge-blue" style="font-size:0.6rem;">2FA</span>{% endif %}
+          </td>
+          <td>
+            <div style="display:flex;gap:0.375rem;flex-wrap:wrap;">
+              <a href="{{ url_for('admin.user_detail', user_id=user.id) }}" class="btn btn-ghost btn-sm" title="View user">
+                <i class="ti ti-eye"></i> View
+              </a>
+              {% if user.discord_id %}
+                <button class="btn btn-ghost btn-sm" onclick="syncUser({{ user.id }}, this)" title="Sync Discord roles">
+                  <i class="ti ti-refresh"></i> Sync
+                </button>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" style="text-align:center;padding:3rem;color:var(--text-subtle);">No users found</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  {% if pagination.pages > 1 %}
+  <div style="padding:0.875rem 1.25rem;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+    <span style="font-size:0.8rem;color:var(--text-muted);">Page {{ pagination.page }} of {{ pagination.pages }}</span>
+    <div style="display:flex;gap:0.5rem;">
+      {% if pagination.has_prev %}
+        <a href="?page={{ pagination.prev_num }}&q={{ search }}&role={{ role_filter }}&status={{ status_filter }}" class="btn btn-ghost btn-sm">← Prev</a>
+      {% endif %}
+      {% if pagination.has_next %}
+        <a href="?page={{ pagination.next_num }}&q={{ search }}&role={{ role_filter }}&status={{ status_filter }}" class="btn btn-ghost btn-sm">Next →</a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+// ── Sync individual user ───────────────────────────────────────────────────────
+function syncUser(id, btn) {
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 1s linear infinite;"></i>';
+  fetch('/auth/discord/admin/sync/' + id, {method: 'POST', credentials: 'same-origin'})
+    .then(function(r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
+    .then(function(d) {
+      showToast(d.message || 'Synced', d.success ? 'success' : 'error');
+    })
+    .catch(function(e) {
+      showToast('Sync failed: ' + e.message, 'error');
+    })
+    .finally(function() {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="ti ti-brand-discord"></i>';
+    });
+}
+
+// ── Sync all users ─────────────────────────────────────────────────────────────
+function syncAll(btn) {
+  btn.style.opacity = '0.6';
+  btn.style.pointerEvents = 'none';
+  fetch('/auth/discord/admin/sync-all', {method: 'POST', credentials: 'same-origin'})
+    .then(function(r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
+    .then(function(d) {
+      showToast('Synced ' + d.synced + ' users', 'success');
+    })
+    .catch(function(e) {
+      showToast('Sync all failed: ' + e.message, 'error');
+    })
+    .finally(function() {
+      btn.style.opacity = '';
+      btn.style.pointerEvents = '';
+    });
+}
+
+// ── Load playtime async so page always renders even if playtime query fails ───
+(function() {
+  var discordIds = [];
+  document.querySelectorAll('[id^="pt-"]').forEach(function(el) {
+    var did = el.id.replace('pt-', '');
+    if (did) discordIds.push(did);
+  });
+  if (!discordIds.length) return;
+
+  fetch('/admin/users/playtime?ids=' + encodeURIComponent(discordIds.join(',')), {credentials: 'same-origin'})
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(data) {
+      if (!data) return;
+      var liveCount = 0;
+      discordIds.forEach(function(did) {
+        var cell = document.getElementById('pt-' + did);
+        if (!cell) return;
+        var info = data[did];
+        if (!info) { cell.innerHTML = '<span style="color:var(--text-subtle);font-size:0.75rem;">—</span>'; return; }
+        if (info.live) {
+          liveCount++;
+          cell.innerHTML =
+            '<span class="badge badge-green" style="font-size:0.65rem;animation:pulse 2s infinite;">🟢 LIVE</span>' +
+            (info.total_h || info.total_m
+              ? '<div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;">' + info.total_h + 'h ' + info.total_m + 'm total</div>'
+              : '');
+        } else if (info.total_secs > 0) {
+          cell.innerHTML = '<span style="font-size:0.8rem;color:var(--text-muted);">' + info.total_h + 'h ' + info.total_m + 'm</span>';
+        } else {
+          cell.innerHTML = '<span style="color:var(--text-subtle);font-size:0.75rem;">—</span>';
+        }
+      });
+      if (liveCount > 0) {
+        var badge = document.getElementById('live-count-badge');
+        badge.textContent = '🟢 ' + liveCount + ' Live Now';
+        badge.style.display = '';
+      }
+    })
+    .catch(function() {}); // playtime failure never breaks the page
+})();
+</script>
+<style>
+@keyframes spin  { to   { transform: rotate(360deg); } }
+@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
+</style>
+{% endblock %}

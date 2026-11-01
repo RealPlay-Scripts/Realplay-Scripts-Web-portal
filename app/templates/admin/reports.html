@@ -1,0 +1,141 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Reports{% endblock %}
+{% block admin_content %}
+
+<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
+  <div>
+    <h2 style="margin:0;font-size:1.35rem;">Reports</h2>
+    <p style="color:var(--text-muted);font-size:0.8rem;margin:0.2rem 0 0;">Manage player reports and bug reports from community members.</p>
+  </div>
+</div>
+
+<!-- Stat cards -->
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;margin-bottom:1.5rem;">
+  {% for key, label, color, icon in [
+    ('total',       'Total Reports',  '#6b7280', 'report'),
+    ('pending',     'Pending',        '#f59e0b', 'clock'),
+    ('in_progress', 'In Progress',    '#3b82f6', 'loader'),
+    ('resolved',    'Resolved',       '#22c55e', 'circle-check'),
+  ] %}
+  <div class="card" style="padding:1rem 1.25rem;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.375rem;">
+      <span style="font-size:0.72rem;color:var(--text-subtle);text-transform:uppercase;letter-spacing:0.08em;">{{ label }}</span>
+      <i class="ti ti-{{ icon }}" style="color:{{ color }};font-size:1rem;"></i>
+    </div>
+    <div style="font-size:1.8rem;font-weight:700;color:{{ color }};">{{ counts[key] }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Filters -->
+<div class="card" style="padding:0.875rem 1rem;margin-bottom:1.25rem;">
+  <form method="GET" style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap;">
+    <select name="status" class="form-input" style="width:auto;padding:0.375rem 0.75rem;font-size:0.8rem;" onchange="this.form.submit()">
+      <option value="">All Statuses</option>
+      {% for s in statuses %}
+        <option value="{{ s }}" {% if status_filter==s %}selected{% endif %}>{{ status_labels[s] }}</option>
+      {% endfor %}
+    </select>
+    <select name="type" class="form-input" style="width:auto;padding:0.375rem 0.75rem;font-size:0.8rem;" onchange="this.form.submit()">
+      <option value="">All Types</option>
+      <option value="player" {% if type_filter=='player' %}selected{% endif %}>Player Reports</option>
+      <option value="bug"    {% if type_filter=='bug'    %}selected{% endif %}>Bug Reports</option>
+    </select>
+    <label style="display:flex;align-items:center;gap:0.375rem;font-size:0.8rem;color:var(--text-muted);cursor:pointer;">
+      <input type="checkbox" name="mine" value="1" {% if mine %}checked{% endif %} onchange="this.form.submit()" />
+      Assigned to me
+    </label>
+    {% if status_filter or type_filter or mine %}
+    <a href="{{ url_for('reports.admin_reports') }}" class="btn btn-ghost btn-sm">
+      <i class="ti ti-x"></i> Clear
+    </a>
+    {% endif %}
+  </form>
+</div>
+
+{% if reports %}
+<div class="card" style="overflow:hidden;padding:0;">
+  <table style="width:100%;border-collapse:collapse;">
+    <thead>
+      <tr style="border-bottom:1px solid var(--border);">
+        <th style="padding:0.75rem 1rem;text-align:left;font-size:0.72rem;color:var(--text-subtle);text-transform:uppercase;letter-spacing:0.08em;">#</th>
+        <th style="padding:0.75rem 1rem;text-align:left;font-size:0.72rem;color:var(--text-subtle);text-transform:uppercase;letter-spacing:0.08em;">Type</th>
+        <th style="padding:0.75rem 1rem;text-align:left;font-size:0.72rem;color:var(--text-subtle);text-transform:uppercase;letter-spacing:0.08em;">Title</th>
+        <th style="padding:0.75rem 1rem;text-align:left;font-size:0.72rem;color:var(--text-subtle);text-transform:uppercase;letter-spacing:0.08em;">Reporter</th>
+        <th style="padding:0.75rem 1rem;text-align:left;font-size:0.72rem;color:var(--text-subtle);text-transform:uppercase;letter-spacing:0.08em;">Status</th>
+        <th style="padding:0.75rem 1rem;text-align:left;font-size:0.72rem;color:var(--text-subtle);text-transform:uppercase;letter-spacing:0.08em;">Submitted</th>
+        <th style="padding:0.75rem 1rem;text-align:left;font-size:0.72rem;color:var(--text-subtle);text-transform:uppercase;letter-spacing:0.08em;">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for report in reports %}
+      <tr style="border-bottom:1px solid var(--border);transition:background 0.1s;"
+          onmouseover="this.style.background='var(--surface-2)'"
+          onmouseout="this.style.background=''">
+        <td style="padding:0.75rem 1rem;font-size:0.8rem;color:var(--text-subtle);">#{{ report.id }}</td>
+        <td style="padding:0.75rem 1rem;">
+          {% if report.report_type == 'player' %}
+            <span style="background:rgba(239,68,68,0.12);color:#f87171;border:1px solid rgba(239,68,68,0.2);border-radius:5px;padding:0.1rem 0.5rem;font-size:0.68rem;font-weight:600;">
+              <i class="ti ti-user-x"></i> Player
+            </span>
+          {% else %}
+            <span style="background:rgba(99,102,241,0.12);color:#a5b4fc;border:1px solid rgba(99,102,241,0.2);border-radius:5px;padding:0.1rem 0.5rem;font-size:0.68rem;font-weight:600;">
+              <i class="ti ti-bug"></i> Bug
+            </span>
+          {% endif %}
+        </td>
+        <td style="padding:0.75rem 1rem;">
+          <div style="font-weight:500;font-size:0.875rem;color:var(--text);max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+            {{ report.title }}
+          </div>
+          {% if report.messages.count() > 0 %}
+          <div style="font-size:0.7rem;color:var(--text-subtle);margin-top:0.1rem;">
+            <i class="ti ti-message-circle"></i> {{ report.messages.count() }} message{{ 's' if report.messages.count() != 1 }}
+          </div>
+          {% endif %}
+        </td>
+        <td style="padding:0.75rem 1rem;font-size:0.8rem;">
+          <a href="{{ url_for('profile.view', username=report.reporter.username) }}" style="color:var(--accent);text-decoration:none;">
+            {{ report.reporter.username }}
+          </a>
+        </td>
+        <td style="padding:0.75rem 1rem;">
+          <span style="background:{{ status_colors[report.status] }}22;color:{{ status_colors[report.status] }};border:1px solid {{ status_colors[report.status] }}44;border-radius:20px;padding:0.2rem 0.65rem;font-size:0.72rem;font-weight:600;white-space:nowrap;">
+            {{ status_labels[report.status] }}
+          </span>
+        </td>
+        <td style="padding:0.75rem 1rem;font-size:0.78rem;color:var(--text-muted);white-space:nowrap;">
+          {{ report.created_at.strftime('%d %b %Y') }}
+        </td>
+        <td style="padding:0.75rem 1rem;">
+          <a href="{{ url_for('reports.admin_report_detail', report_id=report.id) }}" class="btn btn-ghost btn-sm">
+            <i class="ti ti-eye"></i> View
+          </a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if pagination.pages > 1 %}
+<div style="display:flex;justify-content:center;gap:0.5rem;margin-top:1.25rem;">
+  {% if pagination.has_prev %}
+    <a href="?page={{ pagination.prev_num }}&status={{ status_filter }}&type={{ type_filter }}&mine={{ mine }}" class="btn btn-ghost btn-sm"><i class="ti ti-chevron-left"></i></a>
+  {% endif %}
+  <span style="display:flex;align-items:center;font-size:0.8rem;color:var(--text-muted);">Page {{ pagination.page }} of {{ pagination.pages }}</span>
+  {% if pagination.has_next %}
+    <a href="?page={{ pagination.next_num }}&status={{ status_filter }}&type={{ type_filter }}&mine={{ mine }}" class="btn btn-ghost btn-sm"><i class="ti ti-chevron-right"></i></a>
+  {% endif %}
+</div>
+{% endif %}
+
+{% else %}
+<div class="card" style="text-align:center;padding:3rem;">
+  <div style="font-size:2.5rem;margin-bottom:0.75rem;">📋</div>
+  <h3 style="margin:0 0 0.5rem;">No reports found</h3>
+  <p style="color:var(--text-muted);margin:0;">{% if status_filter or type_filter %}Try clearing your filters.{% else %}No reports have been submitted yet.{% endif %}</p>
+</div>
+{% endif %}
+
+{% endblock %}

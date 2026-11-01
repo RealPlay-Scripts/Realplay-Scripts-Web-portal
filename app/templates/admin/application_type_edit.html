@@ -1,0 +1,313 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}{{ 'Edit: ' + app_type.name if app_type else 'New Application Type' }}{% endblock %}
+{% block admin_content %}
+<div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1.5rem;">
+  <a href="{{ url_for('admin.application_types') }}" style="color:var(--text-muted);text-decoration:none;"><i class="ti ti-arrow-left"></i></a>
+  <h1 class="page-title">{{ 'Edit: ' + app_type.name if app_type else 'New Application Type' }}</h1>
+</div>
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:1.5rem;">
+  <div>
+    <form method="POST" action="{{ url_for('admin.edit_application_type', type_id=app_type.id) if app_type else url_for('admin.create_application_type') }}">
+      <div class="card" style="margin-bottom:1rem;">
+        <div class="card-title" style="margin-bottom:1rem;">Basic Info</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.875rem;margin-bottom:0.875rem;">
+          <div><label class="form-label">Name</label><input type="text" name="name" value="{{ app_type.name if app_type else '' }}" class="form-input" required placeholder="Whitelist Application" /></div>
+          <div>
+            <label class="form-label">Icon (Tabler icon name)</label>
+            <input type="text" name="icon" value="{{ app_type.icon if app_type else 'file-text' }}" class="form-input" placeholder="file-text" />
+          </div>
+        </div>
+        <div style="margin-bottom:0.875rem;"><label class="form-label">Description</label><textarea name="description" class="form-input" rows="3" placeholder="Describe what this application is for…">{{ app_type.description if app_type else '' }}</textarea></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.875rem;">
+          <div><label class="form-label">Color</label><input type="color" name="color" value="{{ app_type.color if app_type else '#6366f1' }}" class="form-input" style="height:40px;padding:4px;" /></div>
+          <div><label class="form-label">Sort Order</label><input type="number" name="sort_order" value="{{ app_type.sort_order if app_type else 0 }}" class="form-input" /></div>
+          <div><label class="form-label">Max Applications</label><input type="number" name="max_applications" value="{{ app_type.max_applications if app_type else 1 }}" class="form-input" min="0" /></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:1rem;">
+        <div class="card-title" style="margin-bottom:1rem;">Settings</div>
+        <div style="display:flex;flex-direction:column;gap:0.75rem;margin-bottom:1rem;">
+          {% for field_name, label, checked in [
+            ('is_active','Active (visible to users)', app_type.is_active if app_type else True),
+            ('requires_discord','Require Discord connection', app_type.requires_discord if app_type else True),
+            ('auto_approve','Auto-approve submissions', app_type.auto_approve if app_type else False),
+          ] %}
+          <label style="display:flex;align-items:center;gap:0.75rem;cursor:pointer;">
+            <input type="checkbox" name="{{ field_name }}" {% if checked %}checked{% endif %} style="accent-color:var(--accent);width:16px;height:16px;" />
+            <span style="font-size:0.875rem;font-weight:500;">{{ label }}</span>
+          </label>
+          {% endfor %}
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.875rem;">
+          <div><label class="form-label">Cooldown Days (after denial)</label><input type="number" name="cooldown_days" value="{{ app_type.cooldown_days if app_type else 30 }}" class="form-input" min="0" /></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:1rem;">
+        <div class="card-title" style="margin-bottom:1rem;">Discord Role Integration</div>
+        <p style="font-size:0.75rem;color:var(--text-muted);margin-bottom:1rem;">Select which Discord roles to <strong>add</strong> or <strong>remove</strong> at each stage of the application.</p>
+
+        {% for event_key, event_label, event_color in [
+          ('on_submit',         'On Submit',          '#6366f1'),
+          ('on_approve',        'On Approve',         '#22c55e'),
+          ('on_deny',           'On Deny',            '#ef4444'),
+        ] %}
+        <div style="background:var(--surface-1);border:1px solid var(--border);border-radius:10px;padding:0.875rem;margin-bottom:0.75rem;">
+          <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.75rem;">
+            <div style="width:8px;height:8px;border-radius:50%;background:{{ event_color }};flex-shrink:0;"></div>
+            <span style="font-weight:700;font-size:0.82rem;color:{{ event_color }};">{{ event_label }}</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+            <div>
+              <label class="form-label" style="color:var(--green);">Roles to ADD</label>
+              <div id="add-{{ event_key }}-list" style="display:flex;flex-direction:column;gap:0.375rem;margin-bottom:0.375rem;">
+                {% if app_type %}
+                  {% set existing = app_type['get_roles_' + event_key]() if event_key != 'on_submit' else app_type.get_roles_on_submit() %}
+                  {% for role_id in existing %}
+                    {% set dr = discord_roles | selectattr('id', 'equalto', role_id) | first | default(None) %}
+                    <div style="display:flex;align-items:center;gap:0.375rem;background:var(--surface-2);border-radius:6px;padding:0.3rem 0.5rem;">
+                      <input type="hidden" name="roles_{{ event_key }}" value="{{ role_id }}" />
+                      <span style="flex:1;font-size:0.78rem;font-family:'JetBrains Mono',monospace;">{{ dr.name if dr else role_id }}</span>
+                      <button type="button" onclick="this.parentElement.remove()" style="background:none;border:none;cursor:pointer;color:var(--red);font-size:1rem;line-height:1;">×</button>
+                    </div>
+                  {% endfor %}
+                {% endif %}
+              </div>
+              <div style="display:flex;gap:0.375rem;">
+                <select id="add-{{ event_key }}-select" class="form-input" style="font-size:0.75rem;">
+                  <option value="">+ Add role…</option>
+                  {% for dr in discord_roles %}
+                    <option value="{{ dr.id }}">{{ dr.name }}</option>
+                  {% endfor %}
+                </select>
+                <button type="button" class="btn btn-success btn-sm"
+                  onclick="addRoleTag('add-{{ event_key }}-list','add-{{ event_key }}-select','roles_{{ event_key }}')">+</button>
+              </div>
+            </div>
+            <div>
+              <label class="form-label" style="color:var(--red);">Roles to REMOVE</label>
+              <div id="rem-{{ event_key }}-list" style="display:flex;flex-direction:column;gap:0.375rem;margin-bottom:0.375rem;">
+                {% if app_type %}
+                  {% set existing_rem = app_type['get_roles_remove_' + event_key]() %}
+                  {% for role_id in existing_rem %}
+                    {% set dr = discord_roles | selectattr('id', 'equalto', role_id) | first | default(None) %}
+                    <div style="display:flex;align-items:center;gap:0.375rem;background:var(--surface-2);border-radius:6px;padding:0.3rem 0.5rem;">
+                      <input type="hidden" name="roles_remove_{{ event_key }}" value="{{ role_id }}" />
+                      <span style="flex:1;font-size:0.78rem;font-family:'JetBrains Mono',monospace;">{{ dr.name if dr else role_id }}</span>
+                      <button type="button" onclick="this.parentElement.remove()" style="background:none;border:none;cursor:pointer;color:var(--red);font-size:1rem;line-height:1;">×</button>
+                    </div>
+                  {% endfor %}
+                {% endif %}
+              </div>
+              <div style="display:flex;gap:0.375rem;">
+                <select id="rem-{{ event_key }}-select" class="form-input" style="font-size:0.75rem;">
+                  <option value="">− Remove role…</option>
+                  {% for dr in discord_roles %}
+                    <option value="{{ dr.id }}">{{ dr.name }}</option>
+                  {% endfor %}
+                </select>
+                <button type="button" class="btn btn-danger btn-sm"
+                  onclick="addRoleTag('rem-{{ event_key }}-list','rem-{{ event_key }}-select','roles_remove_{{ event_key }}')">+</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+
+        {% if not discord_roles %}
+        <div style="padding:0.75rem;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.25);border-radius:8px;font-size:0.78rem;color:var(--yellow);">
+          <i class="ti ti-alert-triangle"></i> No Discord roles loaded. Check your bot token and guild ID in .env.
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="card" style="margin-bottom:1rem;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+          <span class="card-title">Form Builder</span>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="addField()"><i class="ti ti-plus"></i> Add Field</button>
+        </div>
+        <div id="field-list" style="display:flex;flex-direction:column;gap:0.75rem;"></div>
+        <input type="hidden" name="form_schema" id="form_schema_input" value="{{ app_type.form_schema if app_type else '[]' }}" />
+      </div>
+
+      <div class="card" style="margin-bottom:1rem;">
+        <div class="card-title" style="margin-bottom:1rem;">Visibility (Staff Roles)</div>
+        <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.75rem;">Leave empty to allow all staff with review permission.</p>
+        <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
+          {% for role in roles %}
+          <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;padding:0.375rem 0.75rem;border-radius:20px;border:1px solid var(--border);font-size:0.8rem;">
+            <input type="checkbox" name="visible_roles" value="{{ role.id }}" {% if app_type and role in app_type.visible_to_roles %}checked{% endif %} style="accent-color:{{ role.color }};" />
+            <span style="color:{{ role.color }};">{{ role.display_name }}</span>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:0.75rem;">
+        <i class="ti ti-{{ 'device-floppy' }}"></i> {{ 'Save Changes' if app_type else 'Create Application Type' }}
+      </button>
+    </form>
+  </div>
+
+  <!-- Preview & recent applications -->
+  <div>
+    <div class="card" style="margin-bottom:1rem;">
+      <div class="card-title" style="margin-bottom:0.875rem;">Preview Card</div>
+      <div id="preview-card" class="card" style="border-color:#6366f133;">
+        <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.75rem;">
+          <div id="preview-icon" style="width:36px;height:36px;border-radius:10px;background:#6366f122;display:flex;align-items:center;justify-content:center;color:#6366f1;font-size:1.1rem;">
+            <i class="ti ti-file-text"></i>
+          </div>
+          <div>
+            <div id="preview-name" style="font-weight:700;font-size:0.9rem;">Application Name</div>
+            <span class="badge badge-blue" style="font-size:0.6rem;"><i class="ti ti-brand-discord"></i> Discord Required</span>
+          </div>
+        </div>
+        <p id="preview-desc" style="font-size:0.8rem;color:var(--text-muted);">Description will appear here…</p>
+      </div>
+    </div>
+
+    {% if app_type and applications %}
+    <div class="card" style="padding:0;overflow:hidden;">
+      <div style="padding:0.875rem 1.25rem;border-bottom:1px solid var(--border);"><span class="card-title">Recent Applications</span></div>
+      <table class="data-table">
+        <thead><tr><th>User</th><th>Status</th><th>Date</th></tr></thead>
+        <tbody>
+          {% for app in applications %}
+          <tr>
+            <td><a href="{{ url_for('admin.review_application', app_id=app.id) }}" style="color:var(--accent);text-decoration:none;font-weight:600;font-size:0.85rem;">{{ app.applicant.username }}</a></td>
+            <td><span class="badge badge-{{ app.status_badge_class }}" style="font-size:0.6rem;">{{ app.status.replace('_',' ').title() }}</span></td>
+            <td style="font-size:0.75rem;color:var(--text-subtle);">{{ app.submitted_at.strftime('%d %b') }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+let fields = JSON.parse(document.getElementById('form_schema_input').value || '[]');
+
+function addRoleTag(listId, selectId, inputName) {
+  const sel = document.getElementById(selectId);
+  const val = sel.value;
+  const text = sel.options[sel.selectedIndex]?.text;
+  if (!val) return;
+  const list = document.getElementById(listId);
+  // Prevent duplicates
+  const existing = list.querySelectorAll(`input[name="${inputName}"]`);
+  for (const inp of existing) { if (inp.value === val) return; }
+  const div = document.createElement('div');
+  div.style.cssText = 'display:flex;align-items:center;gap:0.375rem;background:var(--surface-2);border-radius:6px;padding:0.3rem 0.5rem;';
+  div.innerHTML = `<input type="hidden" name="${inputName}" value="${val}" /><span style="flex:1;font-size:0.78rem;font-family:'JetBrains Mono',monospace;">${text}</span><button type="button" onclick="this.parentElement.remove()" style="background:none;border:none;cursor:pointer;color:var(--red);font-size:1rem;line-height:1;">×</button>`;
+  list.appendChild(div);
+  sel.value = '';
+}
+
+function renderFields() {
+  const list = document.getElementById('field-list');
+  list.innerHTML = '';
+  fields.forEach((f, i) => {
+    const isSelect = f.type === 'select';
+    const opts = Array.isArray(f.options) ? f.options : [];
+    const optsHtml = isSelect ? `
+      <div style="margin-top:0.625rem;padding-top:0.625rem;border-top:1px solid var(--border);">
+        <label class="form-label" style="margin-bottom:0.375rem;">Dropdown Options</label>
+        <div id="opts-${i}" style="display:flex;flex-direction:column;gap:0.3rem;margin-bottom:0.5rem;">
+          ${opts.map((o, oi) => `
+            <div style="display:flex;align-items:center;gap:0.375rem;">
+              <input class="form-input" value="${o.replace(/"/g,'&quot;')}"
+                onchange="updateOpt(${i},${oi},this.value)"
+                style="flex:1;font-size:0.8rem;padding:0.35rem 0.6rem;" placeholder="Option label…" />
+              <button type="button" onclick="removeOpt(${i},${oi})"
+                style="background:none;border:none;cursor:pointer;color:var(--red);font-size:1.2rem;line-height:1;padding:0 4px;">×</button>
+            </div>`).join('')}
+        </div>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="addOpt(${i})" style="font-size:0.75rem;">
+          <i class="ti ti-plus"></i> Add Option
+        </button>
+      </div>` : '';
+
+    list.innerHTML += `
+      <div style="background:var(--surface-1);border:1px solid var(--border);border-radius:10px;padding:0.875rem;">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:0.5rem;margin-bottom:0.5rem;align-items:end;">
+          <div><label class="form-label">Label</label>
+            <input class="form-input" value="${(f.label||'').replace(/"/g,'&quot;')}"
+              onchange="fields[${i}].label=this.value;saveSchema()"
+              style="font-size:0.8rem;padding:0.4rem 0.6rem;" /></div>
+          <div><label class="form-label">Key (no spaces)</label>
+            <input class="form-input" value="${(f.key||'').replace(/"/g,'&quot;')}"
+              onchange="fields[${i}].key=this.value;saveSchema()"
+              style="font-size:0.8rem;padding:0.4rem 0.6rem;" /></div>
+          <div><label class="form-label">Type</label>
+            <select class="form-input"
+              onchange="fields[${i}].type=this.value;if(!fields[${i}].options)fields[${i}].options=[];renderFields();saveSchema();"
+              style="font-size:0.8rem;padding:0.4rem 0.6rem;">
+              ${['text','textarea','select','number','url','email'].map(t =>
+                `<option value="${t}" ${f.type===t?'selected':''}>${t}</option>`).join('')}
+            </select></div>
+          <button type="button" class="btn btn-danger btn-sm" onclick="removeField(${i})"
+            style="align-self:flex-end;"><i class="ti ti-trash"></i></button>
+        </div>
+        <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+          ${!isSelect ? `<input class="form-input" placeholder="Placeholder text" value="${(f.placeholder||'').replace(/"/g,'&quot;')}"
+              onchange="fields[${i}].placeholder=this.value;saveSchema()"
+              style="flex:1;min-width:120px;font-size:0.8rem;padding:0.4rem 0.6rem;" />
+            <input class="form-input" type="number" placeholder="Min length" value="${f.min_length||''}"
+              onchange="fields[${i}].min_length=parseInt(this.value)||0;saveSchema()"
+              style="width:100px;font-size:0.8rem;padding:0.4rem 0.6rem;" />` : ''}
+          <label style="display:flex;align-items:center;gap:0.375rem;font-size:0.8rem;cursor:pointer;white-space:nowrap;">
+            <input type="checkbox" ${f.required?'checked':''}
+              onchange="fields[${i}].required=this.checked;saveSchema()"
+              style="accent-color:var(--accent);" /> Required
+          </label>
+        </div>
+        ${optsHtml}
+      </div>`;
+  });
+}
+
+function addOpt(fieldIdx) {
+  if (!Array.isArray(fields[fieldIdx].options)) fields[fieldIdx].options = [];
+  fields[fieldIdx].options.push('');
+  renderFields(); saveSchema();
+}
+function removeOpt(fieldIdx, optIdx) {
+  fields[fieldIdx].options.splice(optIdx, 1);
+  renderFields(); saveSchema();
+}
+function updateOpt(fieldIdx, optIdx, value) {
+  fields[fieldIdx].options[optIdx] = value;
+  saveSchema();
+}
+
+function addField() {
+  fields.push({label:'',key:'field_'+fields.length,type:'text',placeholder:'',required:false,min_length:0,options:[]});
+  renderFields(); saveSchema();
+}
+function removeField(i) { fields.splice(i,1); renderFields(); saveSchema(); }
+function saveSchema() { document.getElementById('form_schema_input').value = JSON.stringify(fields); }
+
+renderFields();
+
+// Live preview
+document.querySelector('[name="name"]')?.addEventListener('input', e => {
+  document.getElementById('preview-name').textContent = e.target.value || 'Application Name';
+});
+document.querySelector('[name="description"]')?.addEventListener('input', e => {
+  document.getElementById('preview-desc').textContent = e.target.value || 'Description will appear here…';
+});
+document.querySelector('[name="icon"]')?.addEventListener('input', e => {
+  document.getElementById('preview-icon').querySelector('i').className = 'ti ti-' + (e.target.value || 'file-text');
+});
+document.querySelector('[name="color"]')?.addEventListener('input', e => {
+  const c = e.target.value;
+  const icon = document.getElementById('preview-icon');
+  icon.style.background = c + '22'; icon.style.color = c;
+});
+</script>
+{% endblock %}

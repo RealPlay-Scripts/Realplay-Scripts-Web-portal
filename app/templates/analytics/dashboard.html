@@ -1,0 +1,350 @@
+{% extends "base.html" %}
+{% block title %}Live Analytics{% endblock %}
+
+{% block content %}
+<div style="max-width:1400px;margin:0 auto;padding:1.25rem;">
+
+  <!-- Header -->
+  <div class="page-header">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.75rem;">
+      <div>
+        <h1 class="page-title">Live Analytics</h1>
+        <p style="color:var(--text-muted);font-size:0.78rem;margin-top:0.2rem;">
+          Connected to <span style="color:var(--accent);font-family:'JetBrains Mono',monospace;">GSRP_playtime</span>
+          &amp; <span style="color:var(--accent);font-family:'JetBrains Mono',monospace;">GSRP_stats_multi</span>
+        </p>
+      </div>
+      <div style="display:flex;align-items:center;gap:0.75rem;">
+        <div class="live-badge"><span class="live-pulse"></span> <span id="live-label">LIVE</span></div>
+        <div style="font-size:0.72rem;color:var(--text-subtle);">Next update in <span id="countdown" style="color:var(--accent);font-family:'JetBrains Mono',monospace;">10s</span></div>
+        <a href="{{ url_for('analytics.crashes') }}" class="btn btn-ghost btn-sm"><i class="ti ti-bug"></i> Crashes</a>
+        <a href="{{ url_for('analytics.economy') }}" class="btn btn-ghost btn-sm"><i class="ti ti-coin"></i> Economy</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Live summary stats ─────────────────────────────────────────── -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0.875rem;margin-bottom:1.25rem;" id="stat-grid">
+    {% for i in range(6) %}<div class="stat-card skeleton" style="height:82px;"></div>{% endfor %}
+  </div>
+
+  <!-- ── Main content grid ─────────────────────────────────────────── -->
+  <div style="display:grid;grid-template-columns:1fr 340px;gap:1.25rem;margin-bottom:1.25rem;">
+
+    <!-- Left col: leaderboard + charts -->
+    <div style="display:flex;flex-direction:column;gap:1.25rem;">
+
+      <!-- Playtime leaderboard -->
+      <div class="card" style="padding:0;overflow:hidden;">
+        <div style="padding:0.875rem 1rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+          <span class="card-title">Playtime Leaderboard</span>
+          <div style="display:flex;gap:0.25rem;">
+            {% for p, l in [('daily','Day'),('weekly','Week'),('monthly','Month'),('yearly','Year')] %}
+            <button class="tab-btn {% if p == 'weekly' %}active{% endif %}" data-period="{{ p }}"
+              onclick="switchPeriod('{{ p }}',this)"
+              style="padding:0.25rem 0.625rem;font-size:0.72rem;border-bottom-width:1.5px;">{{ l }}</button>
+            {% endfor %}
+          </div>
+        </div>
+        <div id="leaderboard" style="padding:0.625rem;">
+          {% for i in range(5) %}<div class="skeleton" style="height:38px;border-radius:7px;margin-bottom:0.375rem;"></div>{% endfor %}
+        </div>
+      </div>
+
+      <!-- Peak hours chart -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Peak Hours (Last 7 Days)</span>
+          <span style="font-size:0.72rem;color:var(--text-subtle);">Sessions per hour</span>
+        </div>
+        <canvas id="peakChart" height="90"></canvas>
+      </div>
+
+      <!-- Session log -->
+      <div class="card" style="padding:0;overflow:hidden;">
+        <div style="padding:0.875rem 1rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+          <span class="card-title">Session Log</span>
+          <div style="display:flex;gap:0.375rem;">
+            <button class="btn btn-ghost btn-sm" style="font-size:0.7rem;" onclick="filterSessions('')">All</button>
+            <button class="btn btn-ghost btn-sm" style="font-size:0.7rem;color:var(--red);" onclick="filterSessions('crash')">Crashes</button>
+            <button class="btn btn-ghost btn-sm" style="font-size:0.7rem;color:var(--yellow);" onclick="filterSessions('timeout')">Timeouts</button>
+          </div>
+        </div>
+        <div style="overflow-x:auto;max-height:320px;overflow-y:auto;">
+          <table class="data-table" id="session-table">
+            <thead><tr><th>Player</th><th>Duration</th><th>Joined</th><th>Status</th><th>Ping</th></tr></thead>
+            <tbody id="session-body">
+              <tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--text-subtle);">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Right col: live players + kill feed -->
+    <div style="display:flex;flex-direction:column;gap:1.25rem;">
+
+      <!-- Live players -->
+      <div class="card" style="padding:0;overflow:hidden;">
+        <div style="padding:0.875rem 1rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+          <span class="card-title">Online Now</span>
+          <span class="live-badge" style="font-size:0.6rem;"><span class="live-pulse"></span> <span id="online-badge">0</span></span>
+        </div>
+        <div id="player-list" style="padding:0.5rem;max-height:320px;overflow-y:auto;">
+          <p style="color:var(--text-subtle);text-align:center;padding:1.5rem;font-size:0.82rem;">Loading…</p>
+        </div>
+      </div>
+
+      <!-- Kill feed -->
+      <div class="card" style="padding:0;overflow:hidden;flex:1;">
+        <div style="padding:0.875rem 1rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+          <span class="card-title">Kill Feed</span>
+          <span class="live-badge" style="font-size:0.6rem;"><span class="live-pulse"></span> LIVE</span>
+        </div>
+        <div id="killfeed" style="padding:0.5rem;max-height:380px;overflow-y:auto;">
+          <p style="color:var(--text-subtle);text-align:center;padding:1.5rem;font-size:0.82rem;">Loading…</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── K/D + Retention row ──────────────────────────────────────── -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;">
+    <div class="card">
+      <div class="card-title" style="margin-bottom:0.875rem;">Kills vs Deaths (This Week)</div>
+      <canvas id="kdChart" height="130"></canvas>
+    </div>
+    <div class="card">
+      <div class="card-title" style="margin-bottom:0.875rem;">Player Retention (30 Days)</div>
+      <canvas id="retentionChart" height="130"></canvas>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────
+let peakChart, kdChart, retentionChart;
+let currentPeriod = 'weekly';
+let sessionFilter = '';
+let countdown = 10;
+let countdownTimer;
+let sessionData = [];
+
+// ── Countdown ticker ──────────────────────────────────────────────────
+function startCountdown() {
+  clearInterval(countdownTimer);
+  countdown = 10;
+  document.getElementById('countdown').textContent = countdown + 's';
+  countdownTimer = setInterval(() => {
+    countdown--;
+    document.getElementById('countdown').textContent = countdown + 's';
+    if (countdown <= 0) {
+      refreshAll();
+      countdown = 10;
+    }
+  }, 1000);
+}
+
+// ── Main fetch ─────────────────────────────────────────────────────────
+async function refreshAll() {
+  document.getElementById('live-label').textContent = 'UPDATING…';
+  try {
+    await Promise.all([loadOverview(), loadLeaderboard(currentPeriod), loadSessions()]);
+    document.getElementById('live-label').textContent = 'LIVE';
+  } catch(e) {
+    document.getElementById('live-label').textContent = 'ERROR';
+  }
+}
+
+// ── Overview (players, stats, killfeed) ────────────────────────────────
+async function loadOverview() {
+  const d = await fetch('/analytics/data/overview').then(r => r.json()).catch(() => null);
+  if (!d) return;
+
+  // Stat grid
+  const statDefs = [
+    ['Online', d.live_count, 'ti-users', '#22c55e'],
+    ['Today Playtime', d.playtime_today, 'ti-clock', '#6366f1'],
+    ['Week Playtime', d.playtime_week, 'ti-calendar-week', '#3b82f6'],
+    ['Kills (7d)', d.kills_week, 'ti-sword', '#ef4444'],
+    ['Deaths (7d)', d.deaths_week, 'ti-skull', '#f59e0b'],
+    ['All-time Players', d.unique_players, 'ti-users-group', '#06b6d4'],
+  ];
+  document.getElementById('stat-grid').innerHTML = statDefs.map(([label, val, icon, color]) => `
+    <div class="stat-card">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:0.375rem;">
+        <div>
+          <div class="stat-value" style="color:${color};font-size:1.35rem;">${val ?? '—'}</div>
+          <div class="stat-label">${label}</div>
+        </div>
+        <div style="width:30px;height:30px;border-radius:8px;background:${color}22;display:flex;align-items:center;justify-content:center;color:${color};font-size:0.95rem;flex-shrink:0;">
+          <i class="ti ${icon}"></i>
+        </div>
+      </div>
+    </div>`).join('');
+
+  // Online players
+  document.getElementById('online-badge').textContent = d.live_count;
+  const pl = document.getElementById('player-list');
+  if (!d.live_players.length) {
+    pl.innerHTML = '<p style="color:var(--text-subtle);text-align:center;padding:1.5rem;font-size:0.82rem;">No players online</p>';
+  } else {
+    pl.innerHTML = d.live_players.map((p, i) => `
+      <div style="display:flex;align-items:center;gap:0.625rem;padding:0.45rem 0.5rem;background:var(--surface-1);border-radius:7px;margin-bottom:0.3rem;font-size:0.78rem;">
+        <span style="color:var(--text-subtle);font-family:'JetBrains Mono',monospace;width:16px;text-align:center;">${i+1}</span>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.name}</div>
+          <div style="color:var(--text-subtle);font-size:0.7rem;">💰 $${(p.cash||0).toLocaleString()} · 🏦 $${(p.bank||0).toLocaleString()}</div>
+        </div>
+        <span style="font-size:0.68rem;color:var(--text-subtle);font-family:'JetBrains Mono',monospace;">${p.ping||0}ms</span>
+      </div>`).join('');
+  }
+
+  // Kill feed
+  const kf = document.getElementById('killfeed');
+  if (!d.killfeed.length) {
+    kf.innerHTML = '<p style="color:var(--text-subtle);text-align:center;padding:1.5rem;font-size:0.82rem;">No recent kills</p>';
+  } else {
+    kf.innerHTML = d.killfeed.map(k => `
+      <div style="display:flex;align-items:center;gap:0.5rem;padding:0.4rem 0.5rem;background:var(--surface-1);border-radius:7px;margin-bottom:0.3rem;font-size:0.75rem;">
+        <span style="font-weight:700;color:var(--red);flex-shrink:0;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${k.killer}</span>
+        <i class="ti ti-sword" style="color:var(--text-subtle);font-size:0.7rem;flex-shrink:0;"></i>
+        <span style="color:var(--text-muted);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${k.victim}</span>
+        <span style="background:var(--surface-3);border-radius:4px;padding:1px 5px;font-size:0.65rem;color:var(--text-subtle);flex-shrink:0;">${k.weapon}</span>
+        <span style="color:var(--text-subtle);font-size:0.68rem;flex-shrink:0;">${k.ago}</span>
+      </div>`).join('');
+  }
+
+  // K/D chart
+  if (!kdChart) {
+    kdChart = new Chart(document.getElementById('kdChart'), {
+      type: 'bar',
+      data: {
+        labels: ['Kills', 'Deaths'],
+        datasets: [{
+          data: [d.kills_week, d.deaths_week],
+          backgroundColor: ['#ef444488', '#22c55e88'],
+          borderColor: ['#ef4444', '#22c55e'],
+          borderWidth: 2, borderRadius: 6,
+        }]
+      },
+      options: {
+        responsive: true, indexAxis: 'y',
+        plugins: { legend: { display: false } },
+        scales: { x: { beginAtZero: true, grid: { color: 'rgba(99,102,241,0.08)' } }, y: { grid: { display: false } } }
+      }
+    });
+  } else {
+    kdChart.data.datasets[0].data = [d.kills_week, d.deaths_week];
+    kdChart.update('none');
+  }
+}
+
+// ── Leaderboard ────────────────────────────────────────────────────────
+async function loadLeaderboard(period = 'weekly') {
+  const d = await fetch(`/analytics/data/leaderboard?period=${period}`).then(r => r.json()).catch(() => null);
+  if (!d) return;
+  const medals = ['🥇','🥈','🥉'];
+  document.getElementById('leaderboard').innerHTML = !d.leaderboard.length
+    ? '<p style="text-align:center;color:var(--text-subtle);padding:1rem;font-size:0.82rem;">No data for this period</p>'
+    : d.leaderboard.map((p, i) => `
+      <div style="display:flex;align-items:center;gap:0.625rem;padding:0.45rem 0.625rem;background:var(--surface-1);border-radius:7px;margin-bottom:0.3rem;font-size:0.8rem;">
+        <span style="width:22px;text-align:center;font-size:${i<3?'0.9':'0.72'}rem;">${medals[i] || `<span style="color:var(--text-subtle);font-family:'JetBrains Mono',monospace">${i+1}</span>`}</span>
+        <span style="flex:1;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.name}</span>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:0.75rem;color:var(--accent);">${p.formatted}</span>
+      </div>`).join('');
+}
+
+// ── Peak hours ─────────────────────────────────────────────────────────
+async function loadPeakHours() {
+  const d = await fetch('/analytics/data/peak-hours').then(r => r.json()).catch(() => null);
+  if (!d) return;
+  const accent = '#6366f1';
+  if (!peakChart) {
+    peakChart = new Chart(document.getElementById('peakChart'), {
+      type: 'bar',
+      data: {
+        labels: d.labels,
+        datasets: [{ label: 'Sessions', data: d.data, backgroundColor: accent + '55', borderColor: accent, borderWidth: 1.5, borderRadius: 4 }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: { x: { grid: { display: false }, ticks: { maxTicksLimit: 8 } }, y: { beginAtZero: true, grid: { color: 'rgba(99,102,241,0.08)' } } }
+      }
+    });
+  }
+}
+
+// ── Retention chart ────────────────────────────────────────────────────
+async function loadRetention() {
+  const d = await fetch('/analytics/data/retention').then(r => r.json()).catch(() => null);
+  if (!d) return;
+  const labels = Object.keys(d.buckets);
+  const values = Object.values(d.buckets);
+  if (!retentionChart) {
+    retentionChart = new Chart(document.getElementById('retentionChart'), {
+      type: 'doughnut',
+      data: {
+        labels: labels.map(l => l + ' sessions'),
+        datasets: [{ data: values, backgroundColor: ['#6366f188','#3b82f688','#22c55e88','#f59e0b88','#ef444488'], borderColor: ['#6366f1','#3b82f6','#22c55e','#f59e0b','#ef4444'], borderWidth: 2 }]
+      },
+      options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { font: { size: 10 }, padding: 8 } } } }
+    });
+  }
+}
+
+// ── Sessions ───────────────────────────────────────────────────────────
+async function loadSessions() {
+  const url = sessionFilter ? `/analytics/data/session-logs?category=${sessionFilter}` : '/analytics/data/session-logs';
+  const d = await fetch(url).then(r => r.json()).catch(() => null);
+  if (!d) return;
+  sessionData = d.sessions;
+  renderSessions();
+}
+
+function renderSessions() {
+  const catColors = { crash:'var(--red)', timeout:'var(--yellow)', connection:'var(--yellow)', kick:'var(--red)', ban:'var(--red)', quit:'var(--text-subtle)', server:'var(--text-subtle)' };
+  const body = document.getElementById('session-body');
+  body.innerHTML = !sessionData.length
+    ? '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--text-subtle);">No sessions</td></tr>'
+    : sessionData.map(s => `
+      <tr>
+        <td>
+          <div style="font-weight:600;font-size:0.8rem;">${s.player_name||'Unknown'}</div>
+          <div style="font-size:0.68rem;font-family:'JetBrains Mono',monospace;color:var(--text-subtle);">${s.discord_id}</div>
+        </td>
+        <td style="font-family:'JetBrains Mono',monospace;font-size:0.78rem;">${s.duration||'—'}</td>
+        <td style="font-size:0.75rem;color:var(--text-muted);">${s.join_time ? new Date(s.join_time).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '—'}</td>
+        <td>
+          ${s.is_online
+            ? '<span class="badge badge-green" style="font-size:0.6rem;">Online</span>'
+            : `<span style="font-size:0.75rem;color:${catColors[s.category]||'var(--text-subtle)'};">${s.category||'—'}</span>`}
+        </td>
+        <td style="font-family:'JetBrains Mono',monospace;font-size:0.75rem;">${s.ping||'—'}ms</td>
+      </tr>`).join('');
+}
+
+function filterSessions(cat) {
+  sessionFilter = cat;
+  loadSessions();
+}
+
+function switchPeriod(period, btn) {
+  document.querySelectorAll('[data-period]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentPeriod = period;
+  loadLeaderboard(period);
+}
+
+// ── Init ───────────────────────────────────────────────────────────────
+(async () => {
+  await refreshAll();
+  await Promise.all([loadPeakHours(), loadRetention()]);
+  startCountdown();
+})();
+</script>
+{% endblock %}
